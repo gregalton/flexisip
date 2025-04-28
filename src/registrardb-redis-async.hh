@@ -3,10 +3,10 @@ public:
     RegistrarDbRedisAsync(Agent* ag, const std::shared_ptr<RedisClient>& redisClient);
     ~RegistrarDbRedisAsync() override = default;
 
-    std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
-        const std::chrono::system_clock::time_point& now,
-        const std::chrono::seconds& threshold) override {
-        std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
+    void fetchExpiringContacts(time_t startTimestamp,
+                              float threshold,
+                              std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override {
+        std::vector<ExtendedContact> expiringContacts;
         
         // Get all keys matching the pattern for contacts
         auto keys = mRedisClient->keys("fs:*");
@@ -22,14 +22,15 @@ public:
                 
                 try {
                     // Create ExtendedContact from the serialized data
-                    auto contact = std::make_shared<ExtendedContact>(field, value);
+                    ExtendedContact contact(field, value);
                     
                     // Check if the contact is expiring within the threshold
-                    auto expirationTime = contact->getExpireTime();
-                    auto timeUntilExpiration = expirationTime - now;
+                    auto expirationTime = contact.getExpireTime();
+                    auto timeUntilExpiration = std::chrono::duration_cast<std::chrono::seconds>(
+                        expirationTime - std::chrono::system_clock::from_time_t(startTimestamp));
                     
-                    if (timeUntilExpiration <= threshold) {
-                        expiringContacts.push_back(contact);
+                    if (timeUntilExpiration.count() <= threshold && timeUntilExpiration.count() > 0) {
+                        expiringContacts.push_back(std::move(contact));
                     }
                 } catch (const std::exception& e) {
                     SLOGE << "Failed to parse contact data for field " << field << ": " << e.what();
@@ -38,7 +39,7 @@ public:
             }
         }
         
-        return expiringContacts;
+        callback(std::move(expiringContacts));
     }
 
     void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) override {
