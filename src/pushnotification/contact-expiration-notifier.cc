@@ -58,40 +58,72 @@ ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
 }
 
 void ContactExpirationNotifier::onTimerElapsed() {
+	auto now = std::chrono::system_clock::now();
+	auto expiringContacts = mRegistrar.fetchExpiringContacts(now, mLifetimeThreshold);
+	
+	for (const auto& contact : expiringContacts) {
+		if (isDeviceUnresponsive(contact)) {
+			if (shouldRenewRegistration(contact)) {
+				renewRegistration(contact);
+			} else {
+				sendWakeUpNotification(contact);
+			}
+		}
+	}
+}
+
+bool ContactExpirationNotifier::isDeviceUnresponsive(const std::shared_ptr<ExtendedContact>& contact) {
+	auto lastActivity = contact->getLastActivityTime();
+	auto now = std::chrono::system_clock::now();
+	auto inactivityDuration = std::chrono::duration_cast<std::chrono::minutes>(now - lastActivity);
+	
+	return inactivityDuration > std::chrono::minutes(5); // 5 minutes of inactivity
+}
+
+bool ContactExpirationNotifier::shouldRenewRegistration(const std::shared_ptr<ExtendedContact>& contact) {
+	auto renewalCount = contact->getRenewalCount();
+	auto lastRenewalTime = contact->getLastRenewalTime();
+	auto now = std::chrono::system_clock::now();
+	auto timeSinceLastRenewal = std::chrono::duration_cast<std::chrono::hours>(now - lastRenewalTime);
+	
+	// Allow up to 3 renewals per 24 hours
+	return renewalCount < 3 && timeSinceLastRenewal < std::chrono::hours(24);
+}
+
+void ContactExpirationNotifier::renewRegistration(const std::shared_ptr<ExtendedContact>& contact) {
+	auto listener = std::make_shared<RenewalListener>();
+	auto record = std::make_shared<Record>(contact->getKey());
+	record->insert(contact);
+	
+	// Update renewal tracking
+	contact->incrementRenewalCount();
+	contact->setLastRenewalTime(std::chrono::system_clock::now());
+	
+	// Perform the renewal
+	mRegistrar.bind(record, listener);
+}
+
+void ContactExpirationNotifier::sendWakeUpNotification(const ExtendedContact& contact) {
 	SLOGI << kLogPrefix << "Sending service push notifications to wake up mobile devices that have passed "
 	      << mLifetimeThreshold << " of their expiration time...";
-	mRegistrar.fetchExpiringContacts(
-	    getCurrentTime(), mLifetimeThreshold, [weakPNService = mPNService](auto&& contacts) mutable {
-		    static constexpr const auto pushType = pn::PushType::Background;
-		    auto pnService = weakPNService.lock();
-		    if (!pnService) {
-			    SLOGI << kLogPrefix
-			          << "Push notification service destructed, cannot send register wake up notifications "
-			             "(This is expected if flexisip is being shut down)";
-			    return;
-		    }
+	DeviceInfo devInfo{contact};
+	try {
+		const auto request = mPNService->makeRequest(pn::PushType::Background, std::make_unique<pn::PushInfo>(contact));
+		if (auto* httpRequest = dynamic_cast<HttpMessage*>(request.get())) {
+			// We don't want those service notifications overtaking more important call or message
+			// notifications, so send with minimum priority
+			httpRequest->mPriority.weight = NGHTTP2_MIN_WEIGHT;
+		}
 
-		    for (const auto& contact : contacts) {
-			    DeviceInfo devInfo{contact};
-			    try {
-				    const auto request = pnService->makeRequest(pushType, std::make_unique<pn::PushInfo>(contact));
-				    if (auto* httpRequest = dynamic_cast<HttpMessage*>(request.get())) {
-					    // We don't want those service notifications overtaking more important call or message
-					    // notifications, so send with minimum priority
-					    httpRequest->mPriority.weight = NGHTTP2_MIN_WEIGHT;
-				    }
+		mPNService->sendPush(request);
 
-				    pnService->sendPush(request);
-
-				    SLOGI << kLogPrefix << "Background push notification successfully sent to " << devInfo;
-			    } catch (const pushnotification::PushNotificationError& e) {
-				    SLOGD << kLogPrefix << "Register wake-up PN for " << devInfo << " skipped: " << e.what();
-			    } catch (const exception& e) {
-				    SLOGE << kLogPrefix << "Could not send register wake-up notification to " << devInfo << ": "
-				          << e.what();
-			    }
-		    }
-	    });
+		SLOGI << kLogPrefix << "Background push notification successfully sent to " << devInfo;
+	} catch (const pushnotification::PushNotificationError& e) {
+		SLOGD << kLogPrefix << "Register wake-up PN for " << devInfo << " skipped: " << e.what();
+	} catch (const exception& e) {
+		SLOGE << kLogPrefix << "Could not send register wake-up notification to " << devInfo << ": "
+		      << e.what();
+	}
 }
 
 unique_ptr<ContactExpirationNotifier> ContactExpirationNotifier::make_unique(const GenericStruct& cfg,

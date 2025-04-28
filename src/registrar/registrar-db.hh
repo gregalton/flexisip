@@ -98,6 +98,14 @@ public:
 	virtual bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener);
 	virtual void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener);
 	virtual void publish(const std::string& topic, const std::string& uid) = 0;
+
+	/**
+	 * Renews a registration for an existing contact.
+	 * @param contact The contact to renew registration for
+	 * @param listener Callback to handle the renewal result
+	 */
+	void renewRegistration(const ExtendedContact& contact, const std::shared_ptr<ContactUpdateListener>& listener);
+
 	bool useGlobalDomain() const {
 		return mUseGlobalDomain;
 	}

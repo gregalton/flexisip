@@ -687,4 +687,20 @@ void RegistrarDb::fetchWithDomain(const SipUri& url,
 	}
 }
 
+void RegistrarDb::renewRegistration(const ExtendedContact& contact, const std::shared_ptr<ContactUpdateListener>& listener) {
+	// Create binding parameters for renewal
+	BindingParameters params;
+	params.globalExpire = 3600; // 1 hour
+	params.callId = "renew_" + contact.mKey;
+	params.withGruu = true;
+
+	// Create a new registration request
+	sofiasip::Home home;
+	auto sipContact = sip_contact_create(home.home(), 
+		(url_string_t*)contact.urlAsString().c_str(), nullptr);
+	
+	// Bind the contact with new expiration
+	bind(contact.getSipUri(), sipContact, params, listener);
+}
+
 } // namespace flexisip

@@ -33,9 +33,33 @@
 namespace flexisip {
 
 /**
+ * Listener for handling registration renewal results
+ */
+class RenewalListener : public ContactUpdateListener {
+public:
+	void onRecordFound(const std::shared_ptr<Record>& r) override {
+		if (r) {
+			SLOGI << kLogPrefix << "Successfully renewed registration for " << r->getKey();
+		}
+	}
+
+	void onError() override {
+		SLOGE << kLogPrefix << "Failed to renew registration";
+	}
+
+	void onInvalid() override {
+		SLOGE << kLogPrefix << "Invalid registration renewal attempt";
+	}
+
+	void onContactUpdated(const std::shared_ptr<ExtendedContact>& ec) override {
+		SLOGI << kLogPrefix << "Contact updated during renewal: " << ec->urlAsString();
+	}
+};
+
+/**
  * Send wake up push notifications to devices that are nearing their expiration time to let them register again.
  */
-class ContactExpirationNotifier {
+class ContactExpirationNotifier : public StatFinishListener {
 public:
 	ContactExpirationNotifier(std::chrono::seconds interval,
 	                          float lifetimeThreshold,
@@ -43,7 +67,7 @@ public:
 	                          std::weak_ptr<pushnotification::Service>&&,
 	                          const RegistrarDb&);
 
-	void onTimerElapsed();
+	void onTimerElapsed() override;
 
 	static std::unique_ptr<ContactExpirationNotifier> make_unique(const GenericStruct&,
 	                                                              const std::shared_ptr<sofiasip::SuRoot>&,
@@ -55,6 +79,11 @@ private:
 	sofiasip::Timer mTimer;
 	std::weak_ptr<pushnotification::Service> mPNService;
 	const RegistrarDb& mRegistrar;
+
+	bool isDeviceUnresponsive(const std::shared_ptr<ExtendedContact>& contact);
+	bool shouldRenewRegistration(const std::shared_ptr<ExtendedContact>& contact);
+	void renewRegistration(const std::shared_ptr<ExtendedContact>& contact);
+	void sendWakeUpNotification(const std::shared_ptr<ExtendedContact>& contact);
 };
 
 } // namespace flexisip
