@@ -25,14 +25,21 @@ public:
 		const std::chrono::system_clock::time_point& time,
 		const std::chrono::seconds& threshold) override {
 		std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
-		// For internal registrar, we don't need to track expiring contacts
-		// as they are managed in memory and automatically removed when expired
+		for (const auto& record : mRecords) {
+			for (const auto& contact : record.second->getExtendedContacts()) {
+				auto expirationTime = contact->getExpireTime();
+				auto timeUntilExpiration = expirationTime - time;
+				if (timeUntilExpiration <= threshold) {
+					expiringContacts.push_back(contact);
+				}
+			}
+		}
 		return expiringContacts;
 	}
 
 	void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) override {
-		// For internal registrar, we don't need to track activity
-		// as contacts are managed in memory
+		// For internal registrar, we update the last activity time directly
+		contact->updateLastActivityTime();
 	}
 
 	/**

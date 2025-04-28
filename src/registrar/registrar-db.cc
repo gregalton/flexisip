@@ -691,7 +691,8 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
                                    const std::shared_ptr<ContactUpdateListener>& listener) {
     try {
         // Create a new contact header from the existing contact
-        auto sipContact = sip_contact_create(mHome, contact.mSipContact->m_url, nullptr, nullptr);
+        sofiasip::Home home;
+        auto sipContact = sip_contact_create(home.home(), contact.mSipContact->m_url, nullptr, nullptr);
         if (!sipContact) {
             SLOGE << "Failed to create contact header for renewal";
             if (listener) listener->onError();
@@ -700,22 +701,21 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
 
         // Set up binding parameters
         BindingParameters params;
-        params.globalExpire = contact.mExpire;
-        params.path = SipHeaderCollection<SipHeaderPath>(contact.mPath);
+        params.globalExpire = contact.mExpires.count();
+        params.path = sofiasip::SipHeaderCollection<sofiasip::SipHeaderPath>(contact.mPath);
         params.callId = contact.mCallId;
         params.cSeq = contact.mCSeq;
-        params.uniqueId = contact.mKey.str();
 
         // Create a new REGISTER message
-        auto msg = make_shared<MsgSip>(mHome);
-        auto sip = msg->getSip();
-        sip->sip_request = sip_request_create(mHome, SIP_METHOD_REGISTER, nullptr, nullptr);
+        MsgSip msg(home);
+        auto sip = msg.getSip();
+        sip->sip_request = sip_request_create(home.home(), SIP_METHOD_REGISTER, nullptr, nullptr);
         sip->sip_contact = sipContact;
-        sip->sip_call_id = sip_call_id_create(mHome, params.callId.c_str());
-        sip->sip_cseq = sip_cseq_create(mHome, params.cSeq, SIP_METHOD_REGISTER);
+        sip->sip_call_id = sip_call_id_create(home.home(), params.callId.c_str());
+        sip->sip_cseq = sip_cseq_create(home.home(), params.cSeq, SIP_METHOD_REGISTER);
 
         // Bind the contact
-        bind(*msg, params, listener);
+        bind(msg, params, listener);
     } catch (const std::exception& e) {
         SLOGE << "Error renewing registration: " << e.what();
         if (listener) listener->onError();
