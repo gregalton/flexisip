@@ -128,6 +128,22 @@ public:
 		mLocalRegExpire->getRegisteredAors(aors);
 	}
 
+	/**
+	 * Fetch contacts that are close to expiration
+	 * @param now Current time
+	 * @param threshold Time threshold before expiration to consider
+	 * @return List of contacts that are close to expiration
+	 */
+	virtual std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
+		const std::chrono::system_clock::time_point& now,
+		const std::chrono::seconds& threshold) = 0;
+
+	/**
+	 * Update a contact's last activity time
+	 * @param contact The contact to update
+	 */
+	virtual void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) = 0;
+
 protected:
 	class LocalRegExpire {
 		std::map<std::string, time_t> mRegMap;

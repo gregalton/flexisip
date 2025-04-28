@@ -74,7 +74,7 @@ public:
 	ContactExpirationNotifier(const std::shared_ptr<PushNotificationService>& pnService,
 	                          RegistrarDb& registrar,
 	                          std::chrono::seconds lifetimeThreshold);
-	~ContactExpirationNotifier() override = default;
+	~ContactExpirationNotifier() = default;
 
 	void onTimerElapsed();
 

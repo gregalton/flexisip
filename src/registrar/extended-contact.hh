@@ -75,6 +75,12 @@ struct ExtendedContact {
 
 	PushParamList mPushParamList{};
 
+	std::time_t mRegisterTime{0};
+	std::chrono::seconds mExpires{0};
+	std::chrono::system_clock::time_point mLastActivityTime{std::chrono::system_clock::now()};
+	unsigned int mRenewalCount{0};
+	std::chrono::system_clock::time_point mLastRenewalTime{std::chrono::system_clock::now()};
+
 	const char* callId() const {
 		return mCallId.c_str();
 	}
@@ -193,7 +199,8 @@ struct ExtendedContact {
 	    : mCallId(ec.mCallId), mKey(ec.mKey), mPath(ec.mPath), mUserAgent(ec.mUserAgent), mSipContact(nullptr),
 	      mQ(ec.mQ), mCSeq(ec.mCSeq), mAcceptHeader(ec.mAcceptHeader), mConnId(ec.mConnId), mHome(), mAlias(ec.mAlias),
 	      mUsedAsRoute(ec.mUsedAsRoute), mIsFallback(ec.mIsFallback), mRegisterTime(ec.mRegisterTime),
-	      mExpires(ec.mExpires), mMessageExpires(ec.mMessageExpires) {
+	      mExpires(ec.mExpires), mMessageExpires(ec.mMessageExpires), mLastActivityTime(ec.mLastActivityTime),
+	      mRenewalCount(ec.mRenewalCount), mLastRenewalTime(ec.mLastRenewalTime) {
 		mSipContact = sip_contact_dup(mHome.home(), ec.mSipContact);
 		mSipContact->m_next = nullptr;
 	}
@@ -206,9 +213,31 @@ struct ExtendedContact {
 	url_t* toSofiaUrlClean(su_home_t* home);
 	bool isSame(const ExtendedContact& otherContact) const;
 
+	std::chrono::system_clock::time_point getLastActivityTime() const {
+		return mLastActivityTime;
+	}
+
+	void updateLastActivityTime() {
+		mLastActivityTime = std::chrono::system_clock::now();
+	}
+
+	unsigned int getRenewalCount() const {
+		return mRenewalCount;
+	}
+
+	void incrementRenewalCount() {
+		mRenewalCount++;
+	}
+
+	std::chrono::system_clock::time_point getLastRenewalTime() const {
+		return mLastRenewalTime;
+	}
+
+	void setLastRenewalTime(const std::chrono::system_clock::time_point& time) {
+		mLastRenewalTime = time;
+	}
+
 private:
-	time_t mRegisterTime{0};
-	std::chrono::seconds mExpires{0};        // Standard SIP expires= field
 	std::chrono::seconds mMessageExpires{0}; // Custom message-expires= override
 };
 
