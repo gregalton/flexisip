@@ -692,7 +692,8 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
     try {
         // Create a new contact header from the existing contact
         sofiasip::Home home;
-        auto sipContact = sip_contact_create(home.home(), contact.mSipContact->m_url, nullptr, nullptr);
+        auto sipContact = sip_contact_create(home.home(), 
+            url_as_string(home.home(), contact.mSipContact->m_url), nullptr, nullptr);
         if (!sipContact) {
             SLOGE << "Failed to create contact header for renewal";
             if (listener) listener->onError();
@@ -702,12 +703,19 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
         // Set up binding parameters
         BindingParameters params;
         params.globalExpire = contact.mExpires.count();
-        params.path = sofiasip::SipHeaderCollection<sofiasip::SipHeaderPath>(contact.mPath);
+        
+        // Convert path list to SipHeaderCollection
+        sofiasip::SipHeaderCollection<sofiasip::SipHeaderPath> pathCollection;
+        for (const auto& path : contact.mPath) {
+            pathCollection.add(sofiasip::SipHeaderPath(path));
+        }
+        params.path = pathCollection;
+        
         params.callId = contact.mCallId;
         params.cSeq = contact.mCSeq;
 
         // Create a new REGISTER message
-        MsgSip msg(home);
+        sofiasip::MsgSip msg;
         auto sip = msg.getSip();
         sip->sip_request = sip_request_create(home.home(), SIP_METHOD_REGISTER, nullptr, nullptr);
         sip->sip_contact = sipContact;

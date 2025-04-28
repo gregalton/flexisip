@@ -27,7 +27,8 @@ public:
 		std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
 		for (const auto& record : mRecords) {
 			for (const auto& contact : record.second->getExtendedContacts()) {
-				auto expirationTime = contact->getExpireTime();
+				auto expirationTime = std::chrono::system_clock::time_point(
+					std::chrono::seconds(contact->getExpireTime()));
 				auto timeUntilExpiration = expirationTime - time;
 				if (timeUntilExpiration <= threshold) {
 					expiringContacts.push_back(contact);
