@@ -1,14 +1,15 @@
 class RegistrarDbRedisAsync : public RegistrarDb {
 public:
-    // ... existing code ...
+    RegistrarDbRedisAsync(Agent* ag, const std::shared_ptr<RedisClient>& redisClient);
+    ~RegistrarDbRedisAsync() override = default;
 
     std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
-        const std::chrono::system_clock::time_point& time,
+        const std::chrono::system_clock::time_point& now,
         const std::chrono::seconds& threshold) override {
         std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
         
         // Convert time_point to seconds since epoch
-        auto time_seconds = std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
+        auto time_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
         
         // Get all keys matching the pattern for contacts
         auto keys = mRedisClient->keys("contact:*");
@@ -86,5 +87,17 @@ public:
         mRedisClient->hmset(key, contactData);
     }
 
-    // ... rest of existing code ...
+protected:
+    void doBind(const sofiasip::MsgSip& sip,
+                const BindingParameters& parameters,
+                const std::shared_ptr<ContactUpdateListener>& listener) override;
+    void doClear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) override;
+    void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) override;
+    void doFetchInstance(const SipUri& url,
+                         const std::string& uniqueId,
+                         const std::shared_ptr<ContactUpdateListener>& listener) override;
+    void doMigration() override;
+
+private:
+    std::shared_ptr<RedisClient> mRedisClient;
 }; 
