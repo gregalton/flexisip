@@ -96,94 +96,135 @@ public:
         mRedisClient->publish("registrar:" + topic, uid);
     }
 
+    bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener) override {
+        // Add the listener to the map
+        mContactListenersMap[topic] = std::move(listener);
+        
+        // Subscribe to the topic in Redis
+        if (mSubscribeContext) {
+            redisAsyncCommand(mSubscribeContext, sPublishCallback, nullptr, "SUBSCRIBE %s", topic.c_str());
+            return true;
+        }
+        return false;
+    }
+
+    void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener) override {
+        // Remove the listener from the map
+        mContactListenersMap.erase(topic);
+        
+        // Unsubscribe from the topic in Redis
+        if (mSubscribeContext) {
+            redisAsyncCommand(mSubscribeContext, nullptr, nullptr, "UNSUBSCRIBE %s", topic.c_str());
+        }
+    }
+
+    void onContactRegistered(const std::shared_ptr<Record>& r, const std::string& uid) override {
+        LOGD("Contact registered for topic = %s, uid = %s", r->getKey().c_str(), uid.c_str());
+        
+        // Notify all listeners for this topic
+        auto range = mContactListenersMap.equal_range(r->getKey());
+        for (auto it = range.first; it != range.second;) {
+            if (auto strongPtr = it->second.lock()) {
+                strongPtr->onContactRegistered(r, uid);
+                ++it;
+            } else {
+                // Remove expired listener
+                it = mContactListenersMap.erase(it);
+            }
+        }
+    }
+
 protected:
     void doBind(const sofiasip::MsgSip& sip,
                 const BindingParameters& parameters,
                 const std::shared_ptr<ContactUpdateListener>& listener) override {
-        // Implementation of doBind
-        auto redis = mRedisClient->getRedis();
-        auto key = sip.getSip()->sip_from->a_url->url_user;
+        LOGD("Binding contact in Redis");
         
-        // Create or update contact
-        auto contact = std::make_shared<ExtendedContact>(sip, parameters);
-        auto record = std::make_shared<Record>(key);
-        record->insert(contact);
+        // Create a new record or get existing one
+        auto record = std::make_shared<Record>();
+        record->setKey(Record::defineKeyFromUrl(sip.getSip()->sip_from->a_url));
+        
+        // Add contact to record
+        auto contact = std::make_shared<ExtendedContact>(sip.getSip()->sip_contact, parameters);
+        record->addContact(contact);
         
         // Store in Redis
-        redis.hset(key, contact->getUniqueId(), contact->serialize());
-        
-        // Notify listener
-        if (listener) {
+        try {
+            mRedisClient->set(record->getKey(), record->serialize());
             listener->onRecordFound(record);
+        } catch (const std::exception& e) {
+            SLOGE << "Failed to bind contact in Redis: " << e.what();
+            listener->onError();
         }
     }
 
     void doClear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) override {
-        // Implementation of doClear
-        auto redis = mRedisClient->getRedis();
-        auto key = sip.getSip()->sip_from->a_url->url_user;
+        LOGD("Clearing record from Redis");
         
-        // Delete from Redis
-        redis.del(key);
-        
-        // Notify listener
-        if (listener) {
-            listener->onRecordFound(std::make_shared<Record>(key));
+        try {
+            auto key = Record::defineKeyFromUrl(sip.getSip()->sip_from->a_url);
+            mRedisClient->del(key);
+            listener->onRecordFound(nullptr);
+        } catch (const std::exception& e) {
+            SLOGE << "Failed to clear record from Redis: " << e.what();
+            listener->onError();
         }
     }
 
-    void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) override {
-        // Implementation of doFetch
-        auto redis = mRedisClient->getRedis();
-        auto key = url.getUser();
+    void doFetch(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) override {
+        LOGD("Fetching record from Redis");
         
-        // Get all contacts for this key
-        auto contactData = redis.hgetall(key);
-        auto record = std::make_shared<Record>(key);
-        
-        // Parse contacts
-        for (size_t i = 0; i < contactData.size(); i += 2) {
-            const auto& field = contactData[i];
-            const auto& value = contactData[i + 1];
+        try {
+            auto key = Record::defineKeyFromUrl(sip.getSip()->sip_from->a_url);
+            auto value = mRedisClient->get(key);
             
-            try {
-                auto contact = std::make_shared<ExtendedContact>(field, value);
-                record->insert(contact);
-            } catch (const std::exception& e) {
-                SLOGE << "Failed to parse contact data for field " << field << ": " << e.what();
-                continue;
+            if (value.empty()) {
+                listener->onRecordFound(nullptr);
+                return;
             }
-        }
-        
-        // Notify listener
-        if (listener) {
+            
+            auto record = std::make_shared<Record>(key);
+            record->deserialize(value);
             listener->onRecordFound(record);
+        } catch (const std::exception& e) {
+            SLOGE << "Failed to fetch record from Redis: " << e.what();
+            listener->onError();
         }
     }
 
-    void doFetchInstance(const SipUri& url,
-                         const std::string& uniqueId,
-                         const std::shared_ptr<ContactUpdateListener>& listener) override {
-        // Implementation of doFetchInstance
-        auto redis = mRedisClient->getRedis();
-        auto key = url.getUser();
+    void doFetchInstance(const sofiasip::MsgSip& sip, const std::string& uniqueId,
+                        const std::shared_ptr<ContactUpdateListener>& listener) override {
+        LOGD("Fetching record instance from Redis");
         
-        // Get specific contact
-        auto contactData = redis.hget(key, uniqueId);
-        auto record = std::make_shared<Record>(key);
-        
-        if (!contactData.empty()) {
-            try {
-                auto contact = std::make_shared<ExtendedContact>(uniqueId, contactData);
-                record->insert(contact);
-            } catch (const std::exception& e) {
-                SLOGE << "Failed to parse contact data for uniqueId " << uniqueId << ": " << e.what();
+        try {
+            auto key = Record::defineKeyFromUrl(sip.getSip()->sip_from->a_url);
+            auto value = mRedisClient->get(key);
+            
+            if (value.empty()) {
+                listener->onRecordFound(nullptr);
+                return;
             }
-        }
-        
-        // Notify listener
-        if (listener) {
-            listener->onRecordFound(record);
+            
+            auto record = std::make_shared<Record>(key);
+            record->deserialize(value);
+            
+            // Find the specific instance
+            auto contacts = record->getExtendedContacts();
+            auto it = std::find_if(contacts.begin(), contacts.end(),
+                [&uniqueId](const auto& contact) {
+                    return contact->mUniqueId == uniqueId;
+                });
+                
+            if (it != contacts.end()) {
+                auto instanceRecord = std::make_shared<Record>(key);
+                instanceRecord->insert(*it);
+                listener->onRecordFound(instanceRecord);
+            } else {
+                listener->onRecordFound(nullptr);
+            }
+        } catch (const std::exception& e) {
+            SLOGE << "Failed to fetch record instance from Redis: " << e.what();
+            listener->onError();
         }
     }
 
@@ -194,4 +235,6 @@ protected:
 
 private:
     std::shared_ptr<RedisClient> mRedisClient;
+    std::unordered_multimap<std::string, std::weak_ptr<ContactRegisteredListener>> mContactListenersMap;
+    redisAsyncContext* mSubscribeContext;
 }; 
