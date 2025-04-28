@@ -77,6 +77,7 @@ struct ExtendedContact {
 
 	std::time_t mRegisterTime{0};
 	std::chrono::seconds mExpires{0};
+	std::chrono::seconds mMessageExpires{0}; // Custom message-expires= override
 	std::chrono::system_clock::time_point mLastActivityTime{std::chrono::system_clock::now()};
 	unsigned int mRenewalCount{0};
 	std::chrono::system_clock::time_point mLastRenewalTime{std::chrono::system_clock::now()};
@@ -196,11 +197,13 @@ struct ExtendedContact {
 	}
 
 	ExtendedContact(const ExtendedContact& ec)
-	    : mCallId(ec.mCallId), mKey(ec.mKey), mPath(ec.mPath), mUserAgent(ec.mUserAgent), mSipContact(nullptr),
-	      mQ(ec.mQ), mCSeq(ec.mCSeq), mAcceptHeader(ec.mAcceptHeader), mConnId(ec.mConnId), mHome(), mAlias(ec.mAlias),
-	      mUsedAsRoute(ec.mUsedAsRoute), mIsFallback(ec.mIsFallback), mRegisterTime(ec.mRegisterTime),
-	      mExpires(ec.mExpires), mMessageExpires(ec.mMessageExpires), mLastActivityTime(ec.mLastActivityTime),
-	      mRenewalCount(ec.mRenewalCount), mLastRenewalTime(ec.mLastRenewalTime) {
+	    : mCallId(ec.mCallId), mKey(ec.mKey), mPath(ec.mPath), mUserAgent(ec.mUserAgent),
+	      mSipContact(nullptr), mQ(ec.mQ), mCSeq(ec.mCSeq), mAcceptHeader(ec.mAcceptHeader),
+	      mConnId(ec.mConnId), mHome(), mAlias(ec.mAlias), mUsedAsRoute(ec.mUsedAsRoute),
+	      mIsFallback(ec.mIsFallback), mRegisterTime(ec.mRegisterTime),
+	      mExpires(ec.mExpires), mMessageExpires(ec.mMessageExpires),
+	      mLastActivityTime(ec.mLastActivityTime), mRenewalCount(ec.mRenewalCount),
+	      mLastRenewalTime(ec.mLastRenewalTime) {
 		mSipContact = sip_contact_dup(mHome.home(), ec.mSipContact);
 		mSipContact->m_next = nullptr;
 	}
@@ -238,7 +241,6 @@ struct ExtendedContact {
 	}
 
 private:
-	std::chrono::seconds mMessageExpires{0}; // Custom message-expires= override
 };
 
 template <typename TraitsT>
