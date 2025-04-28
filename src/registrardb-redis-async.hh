@@ -87,6 +87,11 @@ public:
         mRedisClient->hmset(key, contactData);
     }
 
+    void publish(const std::string& topic, const std::string& uid) override {
+        // Publish the UID to the Redis channel for the topic
+        mRedisClient->publish("registrar:" + topic, uid);
+    }
+
 protected:
     void doBind(const sofiasip::MsgSip& sip,
                 const BindingParameters& parameters,
