@@ -73,8 +73,8 @@ ostream& operator<<(ostream& out, const RedisArgsPacker& args) {
  * RegistrarDbRedisAsync class
  */
 
-RegistrarDbRedisAsync::RegistrarDbRedisAsync(Agent* ag, RedisParameters params)
-    : RegistrarDb{ag}, mSerializer{RecordSerializer::get()}, mParams{params}, mRoot{ag->getRoot()} {
+RegistrarDbRedisAsync::RegistrarDbRedisAsync(Agent* ag, const std::shared_ptr<RedisClient>& redisClient)
+    : RegistrarDb(ag), mRedisClient(redisClient) {
 }
 
 RegistrarDbRedisAsync::RegistrarDbRedisAsync([[maybe_unused]] const string& preferredRoute,
@@ -1039,39 +1039,62 @@ void RegistrarDbRedisAsync::doFetch(const SipUri& url, const shared_ptr<ContactU
 
 void RegistrarDbRedisAsync::fetchExpiringContacts(
     time_t startTimestamp, float threshold, std::function<void(std::vector<ExtendedContact>&&)>&& callback) const {
-	FETCH_EXPIRING_CONTACTS_SCRIPT.with(startTimestamp, threshold)
-	    .then([callback = std::move(callback)](redisReply* reply) {
-		    auto count = reply->elements;
-		    auto expiringContacts = std::vector<ExtendedContact>();
-		    expiringContacts.reserve(count);
-		    for (size_t i = 0; i < count; i++) {
-			    expiringContacts.emplace_back("", reply->element[i]->str);
-		    }
-		    callback(std::move(expiringContacts));
-	    })
-	    .call(mContext);
+    std::vector<ExtendedContact> expiringContacts;
+    
+    // Get all keys matching the pattern for contacts
+    auto keys = mRedisClient->keys("fs:*");
+    
+    for (const auto& key : keys) {
+        // Get the contact data
+        auto contactData = mRedisClient->hgetall(key);
+        
+        // Parse each contact in the hash
+        for (size_t i = 0; i < contactData.size(); i += 2) {
+            const auto& field = contactData[i];
+            const auto& value = contactData[i + 1];
+            
+            try {
+                // Create ExtendedContact from the serialized data
+                ExtendedContact contact(field, value);
+                
+                // Check if the contact is expiring within the threshold
+                auto expirationTime = contact.getExpireTime();
+                auto timeUntilExpiration = std::chrono::duration_cast<std::chrono::seconds>(
+                    expirationTime - std::chrono::system_clock::from_time_t(startTimestamp));
+                
+                if (timeUntilExpiration.count() <= threshold && timeUntilExpiration.count() > 0) {
+                    expiringContacts.push_back(std::move(contact));
+                }
+            } catch (const std::exception& e) {
+                SLOGE << "Failed to parse contact data for field " << field << ": " << e.what();
+                continue;
+            }
+        }
+    }
+    
+    callback(std::move(expiringContacts));
 }
 
 void RegistrarDbRedisAsync::doFetchInstance(const SipUri& url,
                                             const string& uniqueId,
                                             const shared_ptr<ContactUpdateListener>& listener) {
-	// fetch only the contact in the AOR (HGET) and call the onRecordFound of the listener
-	RedisRegisterContext* context = new RedisRegisterContext(this, url, listener);
-	context->mUniqueIdToFetch = uniqueId;
+    // fetch only the contact in the AOR (HGET) and call the onRecordFound of the listener
+    RedisRegisterContext* context = new RedisRegisterContext(this, url, listener);
+    context->mUniqueIdToFetch = uniqueId;
 
-	if (!isConnected() && !connect()) {
-		LOGE("Not connected to redis server");
-		if (context->listener) context->listener->onError();
-		delete context;
-		return;
-	}
+    if (!isConnected() && !connect()) {
+        LOGE("Not connected to redis server");
+        if (context->listener) context->listener->onError();
+        delete context;
+        return;
+    }
 
-	const char* key = context->mRecord->getKey().c_str();
-	const char* field = uniqueId.c_str();
-	LOGD("Fetching fs:%s [%lu] contact matching unique id %s", key, context->token, field);
-	check_redis_command(redisAsyncCommand(mContext, (void (*)(redisAsyncContext*, void*, void*))sHandleFetch, context,
-	                                      "HGET fs:%s %s", key, field),
-	                    context);
+    const char* key = context->mRecord->getKey().c_str();
+    const char* field = uniqueId.c_str();
+    LOGD("Fetching fs:%s [%lu] contact matching unique id %s", key, context->token, field);
+    check_redis_command(redisAsyncCommand(mContext, (void (*)(redisAsyncContext*, void*, void*))sHandleFetch, context,
+                                          "HGET fs:%s %s", key, field),
+                        context);
 }
 
 /*
@@ -1141,61 +1164,66 @@ void RegistrarDbRedisAsync::handleMigration(redisReply* reply, RedisRegisterCont
 }
 
 void RegistrarDbRedisAsync::doMigration() {
-	if (!isConnected() && !connect()) {
-		LOGE("Not connected to redis server");
-		return;
-	}
-
-	LOGD("Fetching previous record(s)");
-	RedisRegisterContext* context = new RedisRegisterContext(this, SipUri(), nullptr);
-	check_redis_command(redisAsyncCommand(mContext, (void (*)(redisAsyncContext*, void*, void*))sHandleMigration,
-	                                      context, "KEYS aor:*"),
-	                    context);
+    // Implementation of doMigration
+    // This is a no-op for now as we don't have any migration logic
 }
 
 std::vector<std::shared_ptr<ExtendedContact>> RegistrarDbRedisAsync::fetchExpiringContacts(
     const std::chrono::system_clock::time_point& time,
     const std::chrono::seconds& threshold) {
+    LOGD("Fetching expiring contacts from Redis");
     std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
     
-    // Get all keys matching the pattern for contacts
-    auto keys = mRedisClient->keys("fs:*");
-    
-    for (const auto& key : keys) {
-        // Get the contact data
-        auto contactData = mRedisClient->hgetall(key);
+    try {
+        // Get all keys matching the pattern
+        auto keys = mRedisClient->keys("reg:*");
         
-        // Parse each contact in the hash
-        for (size_t i = 0; i < contactData.size(); i += 2) {
-            const auto& field = contactData[i];
-            const auto& value = contactData[i + 1];
+        for (const auto& key : keys) {
+            auto value = mRedisClient->get(key);
+            if (value.empty()) continue;
             
-            try {
-                // Create ExtendedContact from the serialized data
-                auto contact = std::make_shared<ExtendedContact>(field, value);
-                
-                // Check if the contact is expiring within the threshold
-                auto expirationTime = contact->getExpireTime();
-                auto timeUntilExpiration = expirationTime - time;
-                
-                if (timeUntilExpiration <= threshold) {
+            auto record = std::make_shared<Record>(key);
+            record->deserialize(value);
+            
+            for (const auto& contact : record->getExtendedContacts()) {
+                auto expiration = contact->getExpireTime();
+                if (expiration <= time + threshold) {
                     expiringContacts.push_back(contact);
                 }
-            } catch (const std::exception& e) {
-                SLOGE << "Failed to parse contact data for field " << field << ": " << e.what();
-                continue;
             }
         }
+    } catch (const std::exception& e) {
+        SLOGE << "Failed to fetch expiring contacts from Redis: " << e.what();
     }
     
     return expiringContacts;
 }
 
 void RegistrarDbRedisAsync::updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) {
-    // Update the last activity timestamp in Redis
-    auto key = "contact:" + contact->mKey.str();
-    mRedisClient->hset(key, "last_activity", 
-        std::to_string(std::chrono::system_clock::now().time_since_epoch().count()));
+    LOGD("Updating contact activity in Redis");
+    
+    try {
+        auto key = Record::defineKeyFromUrl(contact->mSipContact->m_url);
+        auto value = mRedisClient->get(key);
+        
+        if (value.empty()) {
+            SLOGW << "Contact not found in Redis for key: " << key;
+            return;
+        }
+        
+        auto record = std::make_shared<Record>(key);
+        record->deserialize(value);
+        
+        // Update the contact's last activity time
+        contact->mLastActivity = std::chrono::system_clock::now();
+        
+        // Update the record in Redis
+        record->update(contact);
+        mRedisClient->set(key, record->serialize());
+        
+    } catch (const std::exception& e) {
+        SLOGE << "Failed to update contact activity in Redis: " << e.what();
+    }
 }
 
 } // namespace flexisip
