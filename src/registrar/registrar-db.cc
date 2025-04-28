@@ -692,8 +692,8 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
     try {
         // Create a new contact header from the existing contact
         sofiasip::Home home;
-        auto sipContact = sip_contact_create(home.home(), 
-            url_as_string(home.home(), contact.mSipContact->m_url), nullptr, nullptr);
+        char* urlStr = url_as_string(home.home(), contact.mSipContact->m_url);
+        auto sipContact = sip_contact_create(home.home(), urlStr, nullptr, nullptr);
         if (!sipContact) {
             SLOGE << "Failed to create contact header for renewal";
             if (listener) listener->onError();
@@ -707,9 +707,9 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
         // Convert path list to SipHeaderCollection
         sofiasip::SipHeaderCollection<sofiasip::SipHeaderPath> pathCollection;
         for (const auto& path : contact.mPath) {
-            pathCollection.add(sofiasip::SipHeaderPath(path));
+            pathCollection.add(std::move(sofiasip::SipHeaderPath(path)));
         }
-        params.path = pathCollection;
+        params.path = std::move(pathCollection);
         
         params.callId = contact.mCallId;
         params.cSeq = contact.mCSeq;
