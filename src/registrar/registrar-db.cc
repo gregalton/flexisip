@@ -688,19 +688,34 @@ void RegistrarDb::fetchWithDomain(const SipUri& url,
 }
 
 void RegistrarDb::renewRegistration(const ExtendedContact& contact, const std::shared_ptr<ContactUpdateListener>& listener) {
-	// Create binding parameters for renewal
-	BindingParameters params;
-	params.globalExpire = 3600; // 1 hour
-	params.callId = "renew_" + contact.mKey;
-	params.withGruu = true;
+	if (contact.isExpired()) {
+		listener->onError();
+		return;
+	}
 
-	// Create a new registration request
+	// Create a new contact with updated timestamps
+	auto now = std::chrono::system_clock::now();
+	auto newContact = std::make_shared<ExtendedContact>(contact);
+	newContact->updateLastActivityTime();
+	newContact->incrementRenewalCount();
+	newContact->setLastRenewalTime(now);
+
+	// Prepare bind parameters
+	BindingParameters params;
+	params.globalExpire = contact.getSipExpires().count();
+	params.callId = "renew_" + contact.mKey.str(); // Convert ContactKey to string
+	params.path = contact.mPath;
+	params.userAgent = contact.mUserAgent;
+	params.cSeq = contact.mCSeq;
+	params.alias = contact.mAlias;
+	params.uniqueId = contact.mKey.str();
+
+	// Create a new SIP contact
 	sofiasip::Home home;
-	auto sipContact = sip_contact_create(home.home(), 
-		(url_string_t*)contact.urlAsString().c_str(), nullptr);
-	
-	// Bind the contact with new expiration
-	bind(contact.getSipUri(), sipContact, params, listener);
+	sip_contact_t* sipContact = contact.toSofiaContact(home.home());
+
+	// Bind the contact
+	bind(contact.urlAsString(), sipContact, params, listener);
 }
 
 } // namespace flexisip

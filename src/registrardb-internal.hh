@@ -21,6 +21,17 @@ public:
 	                           float threshold,
 	                           std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override;
 
+	std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
+		const std::chrono::system_clock::time_point& time,
+		const std::chrono::seconds& threshold) override {
+		// Internal implementation doesn't need to track expiring contacts
+		return {};
+	}
+
+	void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) override {
+		// Internal implementation doesn't need to track contact activity
+	}
+
 	/**
 	 * Read-only access to the stored records. As of 2023-07-05, only used in tests
 	 */
