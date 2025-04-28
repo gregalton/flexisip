@@ -28,7 +28,30 @@ public:
             // If contact is expiring within the threshold, add it to the list
             if (time_until_expiry <= threshold.count() && time_until_expiry > 0) {
                 auto contact = std::make_shared<ExtendedContact>();
-                // TODO: Populate contact with data from Redis
+                
+                // Populate contact with data from Redis
+                sofiasip::Home home;
+                
+                // Create SIP contact from URL
+                auto urlStr = contactData["url"];
+                auto sipContact = sip_contact_create(home.home(), (const url_string_t*)urlStr.c_str(), nullptr, nullptr);
+                if (!sipContact) continue;
+                
+                contact->mSipContact = sipContact;
+                contact->mExpires = std::chrono::seconds(expires - time_seconds);
+                contact->mCallId = contactData["call_id"];
+                contact->mCSeq = std::stoi(contactData["cseq"]);
+                
+                // Parse path if exists
+                auto pathIt = contactData.find("path");
+                if (pathIt != contactData.end()) {
+                    std::istringstream pathStream(pathIt->second);
+                    std::string path;
+                    while (std::getline(pathStream, path, ',')) {
+                        contact->mPath.push_back(path);
+                    }
+                }
+                
                 expiringContacts.push_back(contact);
             }
         }
@@ -44,7 +67,23 @@ public:
         auto now = std::chrono::system_clock::now();
         auto now_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
         
-        mRedisClient->hset(key, "last_activity", std::to_string(now_seconds));
+        // Update contact data in Redis
+        std::unordered_map<std::string, std::string> contactData;
+        contactData["last_activity"] = std::to_string(now_seconds);
+        contactData["url"] = url_as_string(home.home(), contact->mSipContact->m_url);
+        contactData["expires"] = std::to_string(contact->mExpires.count());
+        contactData["call_id"] = contact->mCallId;
+        contactData["cseq"] = std::to_string(contact->mCSeq);
+        
+        // Store path as comma-separated string
+        std::stringstream pathStream;
+        for (size_t i = 0; i < contact->mPath.size(); ++i) {
+            if (i > 0) pathStream << ",";
+            pathStream << contact->mPath[i];
+        }
+        contactData["path"] = pathStream.str();
+        
+        mRedisClient->hmset(key, contactData);
     }
 
     // ... rest of existing code ...
