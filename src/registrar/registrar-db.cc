@@ -687,35 +687,39 @@ void RegistrarDb::fetchWithDomain(const SipUri& url,
 	}
 }
 
-void RegistrarDb::renewRegistration(const ExtendedContact& contact, const std::shared_ptr<ContactUpdateListener>& listener) {
-	if (contact.isExpired()) {
-		listener->onError();
-		return;
-	}
+void RegistrarDb::renewRegistration(const ExtendedContact& contact,
+                                   const std::shared_ptr<ContactUpdateListener>& listener) {
+    try {
+        // Create a new contact header from the existing contact
+        auto sipContact = sip_contact_create(mHome, contact.mSipContact->m_url, nullptr, nullptr);
+        if (!sipContact) {
+            SLOGE << "Failed to create contact header for renewal";
+            if (listener) listener->onError();
+            return;
+        }
 
-	// Create a new contact with updated timestamps
-	auto now = std::chrono::system_clock::now();
-	auto newContact = std::make_shared<ExtendedContact>(contact);
-	newContact->updateLastActivityTime();
-	newContact->incrementRenewalCount();
-	newContact->setLastRenewalTime(now);
+        // Set up binding parameters
+        BindingParameters params;
+        params.globalExpire = contact.mExpire;
+        params.path = SipHeaderCollection<SipHeaderPath>(contact.mPath);
+        params.callId = contact.mCallId;
+        params.cSeq = contact.mCSeq;
+        params.uniqueId = contact.mKey.str();
 
-	// Prepare bind parameters
-	BindingParameters params;
-	params.globalExpire = contact.getSipExpires().count();
-	params.callId = "renew_" + contact.mKey.str(); // Convert ContactKey to string
-	params.path = contact.mPath;
-	params.userAgent = contact.mUserAgent;
-	params.cSeq = contact.mCSeq;
-	params.alias = contact.mAlias;
-	params.uniqueId = contact.mKey.str();
+        // Create a new REGISTER message
+        auto msg = make_shared<MsgSip>(mHome);
+        auto sip = msg->getSip();
+        sip->sip_request = sip_request_create(mHome, SIP_METHOD_REGISTER, nullptr, nullptr);
+        sip->sip_contact = sipContact;
+        sip->sip_call_id = sip_call_id_create(mHome, params.callId.c_str());
+        sip->sip_cseq = sip_cseq_create(mHome, params.cSeq, SIP_METHOD_REGISTER);
 
-	// Create a new SIP contact
-	sofiasip::Home home;
-	sip_contact_t* sipContact = contact.toSofiaContact(home.home());
-
-	// Bind the contact
-	bind(contact.urlAsString(), sipContact, params, listener);
+        // Bind the contact
+        bind(*msg, params, listener);
+    } catch (const std::exception& e) {
+        SLOGE << "Error renewing registration: " << e.what();
+        if (listener) listener->onError();
+    }
 }
 
 } // namespace flexisip
