@@ -692,8 +692,8 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
     try {
         // Create a new contact header from the existing contact
         sofiasip::Home home;
-        char* urlStr = url_as_string(home.home(), contact.mSipContact->m_url);
-        auto sipContact = sip_contact_create(home.home(), urlStr, nullptr, nullptr);
+        auto urlStr = url_as_string(home.home(), contact.mSipContact->m_url);
+        auto sipContact = sip_contact_create(home.home(), (const url_string_t*)urlStr, nullptr, nullptr);
         if (!sipContact) {
             SLOGE << "Failed to create contact header for renewal";
             if (listener) listener->onError();
