@@ -8,52 +8,33 @@ public:
         const std::chrono::seconds& threshold) override {
         std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
         
-        // Convert time_point to seconds since epoch
-        auto time_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-        
         // Get all keys matching the pattern for contacts
-        auto keys = mRedisClient->keys("contact:*");
+        auto keys = mRedisClient->keys("fs:*");
         
         for (const auto& key : keys) {
-            // Get contact data from Redis
+            // Get the contact data
             auto contactData = mRedisClient->hgetall(key);
-            if (contactData.empty()) continue;
             
-            // Parse expiration time from contact data
-            auto it = contactData.find("expires");
-            if (it == contactData.end()) continue;
-            
-            auto expires = std::stoll(it->second);
-            auto time_until_expiry = expires - time_seconds;
-            
-            // If contact is expiring within the threshold, add it to the list
-            if (time_until_expiry <= threshold.count() && time_until_expiry > 0) {
-                auto contact = std::make_shared<ExtendedContact>();
+            // Parse each contact in the hash
+            for (size_t i = 0; i < contactData.size(); i += 2) {
+                const auto& field = contactData[i];
+                const auto& value = contactData[i + 1];
                 
-                // Populate contact with data from Redis
-                sofiasip::Home home;
-                
-                // Create SIP contact from URL
-                auto urlStr = contactData["url"];
-                auto sipContact = sip_contact_create(home.home(), (const url_string_t*)urlStr.c_str(), nullptr, nullptr);
-                if (!sipContact) continue;
-                
-                contact->mSipContact = sipContact;
-                contact->mExpires = std::chrono::seconds(expires - time_seconds);
-                contact->mCallId = contactData["call_id"];
-                contact->mCSeq = std::stoi(contactData["cseq"]);
-                
-                // Parse path if exists
-                auto pathIt = contactData.find("path");
-                if (pathIt != contactData.end()) {
-                    std::istringstream pathStream(pathIt->second);
-                    std::string path;
-                    while (std::getline(pathStream, path, ',')) {
-                        contact->mPath.push_back(path);
+                try {
+                    // Create ExtendedContact from the serialized data
+                    auto contact = std::make_shared<ExtendedContact>(field, value);
+                    
+                    // Check if the contact is expiring within the threshold
+                    auto expirationTime = contact->getExpireTime();
+                    auto timeUntilExpiration = expirationTime - now;
+                    
+                    if (timeUntilExpiration <= threshold) {
+                        expiringContacts.push_back(contact);
                     }
+                } catch (const std::exception& e) {
+                    SLOGE << "Failed to parse contact data for field " << field << ": " << e.what();
+                    continue;
                 }
-                
-                expiringContacts.push_back(contact);
             }
         }
         
@@ -61,30 +42,14 @@ public:
     }
 
     void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) override {
-        if (!contact) return;
+        contact->updateLastActivityTime();
+        auto record = std::make_shared<Record>(contact->getKey());
+        record->insert(contact);
         
-        // Update last activity time in Redis
-        auto key = "contact:" + contact->mKey;
-        auto now = std::chrono::system_clock::now();
-        auto now_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-        
-        // Update contact data in Redis
-        std::unordered_map<std::string, std::string> contactData;
-        contactData["last_activity"] = std::to_string(now_seconds);
-        contactData["url"] = url_as_string(home.home(), contact->mSipContact->m_url);
-        contactData["expires"] = std::to_string(contact->mExpires.count());
-        contactData["call_id"] = contact->mCallId;
-        contactData["cseq"] = std::to_string(contact->mCSeq);
-        
-        // Store path as comma-separated string
-        std::stringstream pathStream;
-        for (size_t i = 0; i < contact->mPath.size(); ++i) {
-            if (i > 0) pathStream << ",";
-            pathStream << contact->mPath[i];
-        }
-        contactData["path"] = pathStream.str();
-        
-        mRedisClient->hmset(key, contactData);
+        // Update the contact in Redis
+        auto redis = mRedisClient->getRedis();
+        redis.hset(contact->getKey().str(), "last_activity", 
+                   std::to_string(std::chrono::system_clock::to_time_t(contact->getLastActivityTime())));
     }
 
     void publish(const std::string& topic, const std::string& uid) override {
