@@ -22,7 +22,15 @@
 
 #include "utils/transport/http/http-message.hh"
 
+#include <chrono>
+
+#include "flexisip/logmanager.hh"
+#include "pushnotification/service.hh"
+#include "registrar/extended-contact.hh"
+#include "registrar/registrar-db.hh"
+
 using namespace std;
+using namespace flexisip;
 
 namespace flexisip {
 
@@ -45,16 +53,10 @@ ostream& operator<<(ostream& stream, const DeviceInfo& devInfo) {
 
 } // namespace
 
-ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
-                                                     float lifetimeThreshold,
-                                                     const shared_ptr<sofiasip::SuRoot>& root,
-                                                     weak_ptr<pn::Service>&& pnService,
-                                                     const RegistrarDb& registrar)
-    : mLifetimeThreshold(lifetimeThreshold), mTimer(root, interval), mPNService(std::move(pnService)),
-      mRegistrar(registrar) {
-	// SAFETY: This lambda is safe memory-wise if and only if it doesn't outlive `this`.
-	// Which is the case as long as `this` holds the sofiasip::Timer.
-	mTimer.setForEver([this] { onTimerElapsed(); });
+ContactExpirationNotifier::ContactExpirationNotifier(const std::shared_ptr<PushNotificationService>& pnService,
+                                                   RegistrarDb& registrar,
+                                                   std::chrono::seconds lifetimeThreshold)
+    : mPNService(pnService), mRegistrar(registrar), mLifetimeThreshold(lifetimeThreshold) {
 }
 
 void ContactExpirationNotifier::onTimerElapsed() {
@@ -103,9 +105,10 @@ void ContactExpirationNotifier::renewRegistration(const std::shared_ptr<Extended
 	mRegistrar.bind(record, listener);
 }
 
-void ContactExpirationNotifier::sendWakeUpNotification(const ExtendedContact& contact) {
+void ContactExpirationNotifier::sendWakeUpNotification(const std::shared_ptr<ExtendedContact>& contact) {
 	SLOGI << kLogPrefix << "Sending service push notifications to wake up mobile devices that have passed "
-	      << mLifetimeThreshold << " of their expiration time...";
+	      << mLifetimeThreshold.count() << " seconds of their expiration time...";
+	
 	DeviceInfo devInfo{contact};
 	try {
 		const auto request = mPNService->makeRequest(pn::PushType::Background, std::make_unique<pn::PushInfo>(contact));

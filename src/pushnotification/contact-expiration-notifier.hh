@@ -18,7 +18,9 @@
 
 #pragma once
 
-#include <exception>
+#include <chrono>
+#include <memory>
+#include <string>
 
 #include <bctoolbox/logging.h>
 
@@ -29,8 +31,13 @@
 #include "pushnotification/push-notification-error.hh"
 #include "pushnotification/service.hh"
 #include "registrar/registrar-db.hh"
+#include "flexisip/registrar/registar-listeners.hh"
+#include "registrar/record.hh"
+#include "registrar/extended-contact.hh"
 
 namespace flexisip {
+
+class PushNotificationService;
 
 /**
  * Listener for handling registration renewal results
@@ -54,6 +61,9 @@ public:
 	void onContactUpdated(const std::shared_ptr<ExtendedContact>& ec) override {
 		SLOGI << kLogPrefix << "Contact updated during renewal: " << ec->urlAsString();
 	}
+
+private:
+	static constexpr const char* kLogPrefix = "[RenewalListener] ";
 };
 
 /**
@@ -61,13 +71,12 @@ public:
  */
 class ContactExpirationNotifier : public StatFinishListener {
 public:
-	ContactExpirationNotifier(std::chrono::seconds interval,
-	                          float lifetimeThreshold,
-	                          const std::shared_ptr<sofiasip::SuRoot>&,
-	                          std::weak_ptr<pushnotification::Service>&&,
-	                          const RegistrarDb&);
+	ContactExpirationNotifier(const std::shared_ptr<PushNotificationService>& pnService,
+	                          RegistrarDb& registrar,
+	                          std::chrono::seconds lifetimeThreshold);
+	~ContactExpirationNotifier() override = default;
 
-	void onTimerElapsed() override;
+	void onTimerElapsed();
 
 	static std::unique_ptr<ContactExpirationNotifier> make_unique(const GenericStruct&,
 	                                                              const std::shared_ptr<sofiasip::SuRoot>&,
@@ -75,15 +84,15 @@ public:
 	                                                              const RegistrarDb&);
 
 private:
-	const float mLifetimeThreshold; // Notify devices that have passed that proportion of their time to live
-	sofiasip::Timer mTimer;
-	std::weak_ptr<pushnotification::Service> mPNService;
-	const RegistrarDb& mRegistrar;
-
 	bool isDeviceUnresponsive(const std::shared_ptr<ExtendedContact>& contact);
 	bool shouldRenewRegistration(const std::shared_ptr<ExtendedContact>& contact);
 	void renewRegistration(const std::shared_ptr<ExtendedContact>& contact);
 	void sendWakeUpNotification(const std::shared_ptr<ExtendedContact>& contact);
+
+	std::weak_ptr<PushNotificationService> mPNService;
+	RegistrarDb& mRegistrar;
+	const std::chrono::seconds mLifetimeThreshold;
+	static constexpr const char* kLogPrefix = "[ContactExpirationNotifier] ";
 };
 
 } // namespace flexisip
