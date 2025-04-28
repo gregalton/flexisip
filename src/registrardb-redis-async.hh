@@ -42,6 +42,37 @@ public:
         callback(std::move(expiringContacts));
     }
 
+    std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
+        const std::chrono::system_clock::time_point& time,
+        const std::chrono::seconds& threshold) override {
+        LOGD("Fetching expiring contacts from Redis");
+        std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
+        
+        try {
+            // Get all keys matching the pattern
+            auto keys = mRedisClient->keys("reg:*");
+            
+            for (const auto& key : keys) {
+                auto value = mRedisClient->get(key);
+                if (value.empty()) continue;
+                
+                auto record = std::make_shared<Record>(key);
+                record->deserialize(value);
+                
+                for (const auto& contact : record->getExtendedContacts()) {
+                    auto expiration = contact->getExpireTime();
+                    if (expiration <= time + threshold) {
+                        expiringContacts.push_back(contact);
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            SLOGE << "Failed to fetch expiring contacts from Redis: " << e.what();
+        }
+        
+        return expiringContacts;
+    }
+
     void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) override {
         LOGD("Updating contact activity in Redis");
         
@@ -209,37 +240,6 @@ protected:
     void doMigration() override {
         // Implementation of doMigration
         // This is a no-op for now as we don't have any migration logic
-    }
-
-    std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
-        const std::chrono::system_clock::time_point& time,
-        const std::chrono::seconds& threshold) override {
-        LOGD("Fetching expiring contacts from Redis");
-        std::vector<std::shared_ptr<ExtendedContact>> expiringContacts;
-        
-        try {
-            // Get all keys matching the pattern
-            auto keys = mRedisClient->keys("reg:*");
-            
-            for (const auto& key : keys) {
-                auto value = mRedisClient->get(key);
-                if (value.empty()) continue;
-                
-                auto record = std::make_shared<Record>(key);
-                record->deserialize(value);
-                
-                for (const auto& contact : record->getExtendedContacts()) {
-                    auto expiration = contact->getExpireTime();
-                    if (expiration <= time + threshold) {
-                        expiringContacts.push_back(contact);
-                    }
-                }
-            }
-        } catch (const std::exception& e) {
-            SLOGE << "Failed to fetch expiring contacts from Redis: " << e.what();
-        }
-        
-        return expiringContacts;
     }
 
 private:
