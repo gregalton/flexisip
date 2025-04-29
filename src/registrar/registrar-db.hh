@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "sofia-sip/sip.h"
+#include "registrar-interfaces.hh"
 
 namespace sofiasip {
 class MsgSip;
