@@ -10,7 +10,6 @@ namespace flexisip {
 class ExtendedContact;
 class ContactUpdateListener;
 class ContactRegisteredListener;
-class MsgSip;
 class BindingParameters;
 class SipUri;
 
