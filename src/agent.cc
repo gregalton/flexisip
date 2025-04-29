@@ -40,7 +40,7 @@
 #include "etchosts.hh"
 #include "plugin/plugin-loader.hh"
 #include "utils/uri-utils.hh"
-#include "src/domain-registrations.hh"
+#include "domain-registrations.hh"
 
 #define IPADDR_SIZE 64
 
