@@ -42,7 +42,74 @@ class RegistrarDb {
 	friend class ModuleRegistrar;
 
 public:
-	virtual ~RegistrarDb();
+	RegistrarDb(Agent* agent) : mAgent(agent) {}
+	virtual ~RegistrarDb() = default;
+
+	// Setters for the handlers
+	void setExpirationHandler(std::unique_ptr<IExpirationHandler> handler) {
+		mExpirationHandler = std::move(handler);
+	}
+
+	void setActivityTracker(std::unique_ptr<IActivityTracker> tracker) {
+		mActivityTracker = std::move(tracker);
+	}
+
+	void setContactManager(std::unique_ptr<IContactManager> manager) {
+		mContactManager = std::move(manager);
+	}
+
+	void setPubSub(std::unique_ptr<IPubSub> pubsub) {
+		mPubSub = std::move(pubsub);
+	}
+
+	// Delegated methods
+	std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
+		const std::chrono::system_clock::time_point& time,
+		const std::chrono::seconds& threshold) {
+		return mExpirationHandler->fetchExpiringContacts(time, threshold);
+	}
+
+	void fetchExpiringContacts(time_t startTimestamp, float threshold,
+							 std::function<void(std::vector<ExtendedContact>&&)>&& callback) const {
+		mExpirationHandler->fetchExpiringContacts(startTimestamp, threshold, std::move(callback));
+	}
+
+	void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) {
+		mActivityTracker->updateContactActivity(contact);
+	}
+
+	void bind(const MsgSip& sip, const BindingParameters& parameters, 
+			 const std::shared_ptr<ContactUpdateListener>& listener) {
+		mContactManager->bind(sip, parameters, listener);
+	}
+
+	void clear(const MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) {
+		mContactManager->clear(sip, listener);
+	}
+
+	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) {
+		mContactManager->fetch(url, listener);
+	}
+
+	void fetchInstance(const SipUri& url, const std::string& uniqueId,
+					  const std::shared_ptr<ContactUpdateListener>& listener) {
+		mContactManager->fetchInstance(url, uniqueId, listener);
+	}
+
+	void publish(const std::string& topic, const std::string& uid) {
+		mPubSub->publish(topic, uid);
+	}
+
+	bool subscribe(const std::string& topic, 
+				  std::weak_ptr<ContactRegisteredListener>&& listener) {
+		return mPubSub->subscribe(topic, std::move(listener));
+	}
+
+	void unsubscribe(const std::string& topic, 
+					const std::shared_ptr<ContactRegisteredListener>& listener) {
+		mPubSub->unsubscribe(topic, listener);
+	}
+
 	/**
 	 * Reset RegistrarDb::sUnique
 	 * WARNING : this method is ONLY there for testing purpose
@@ -55,26 +122,23 @@ public:
 	 */
 	static RegistrarDb* get();
 	void bind(sofiasip::MsgSip&& sipMsg,
-	          const BindingParameters& parameter,
-	          const std::shared_ptr<ContactUpdateListener>& listener);
+			  const BindingParameters& parameter,
+			  const std::shared_ptr<ContactUpdateListener>& listener);
 	void bind(const sofiasip::MsgSip& sipMsg,
-	          const BindingParameters& parameter,
-	          const std::shared_ptr<ContactUpdateListener>& listener);
+			  const BindingParameters& parameter,
+			  const std::shared_ptr<ContactUpdateListener>& listener);
 	void bind(const SipUri& from,
-	          const sip_contact_t* contact,
-	          const BindingParameters& parameter,
-	          const std::shared_ptr<ContactUpdateListener>& listener);
+			  const sip_contact_t* contact,
+			  const BindingParameters& parameter,
+			  const std::shared_ptr<ContactUpdateListener>& listener);
 	void clear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener);
 	void clear(const SipUri& url, const std::string& callId, const std::shared_ptr<ContactUpdateListener>& listener);
 	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive = false);
 	void fetch(const SipUri& url,
-	           const std::shared_ptr<ContactUpdateListener>& listener,
-	           bool includingDomains,
-	           bool recursive);
+			   const std::shared_ptr<ContactUpdateListener>& listener,
+			   bool includingDomains,
+			   bool recursive);
 	void fetchList(const std::vector<SipUri> urls, const std::shared_ptr<ListContactUpdateListener>& listener);
-	virtual void fetchExpiringContacts(time_t startTimestamp,
-	                                   float threshold,
-	                                   std::function<void(std::vector<ExtendedContact>&&)>&& callback) const = 0;
 	void notifyContactListener(const std::shared_ptr<Record>& r /*might be empty record*/, const std::string& uid);
 	void updateRemoteExpireTime(const std::string& key, time_t expireat);
 	unsigned long countLocalActiveRecords() {
@@ -128,22 +192,6 @@ public:
 		mLocalRegExpire->getRegisteredAors(aors);
 	}
 
-	/**
-	 * Fetch contacts that are close to expiration
-	 * @param now Current time
-	 * @param threshold Time threshold before expiration to consider
-	 * @return List of contacts that are close to expiration
-	 */
-	virtual std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
-		const std::chrono::system_clock::time_point& now,
-		const std::chrono::seconds& threshold) = 0;
-
-	/**
-	 * Update a contact's last activity time
-	 * @param contact The contact to update
-	 */
-	virtual void updateContactActivity(const std::shared_ptr<ExtendedContact>& contact) = 0;
-
 protected:
 	class LocalRegExpire {
 		std::map<std::string, time_t> mRegMap;
@@ -171,19 +219,19 @@ protected:
 		void notifyLocalRegExpireListener(unsigned int count);
 	};
 	virtual void doBind(const sofiasip::MsgSip& sip,
-	                    const BindingParameters& parameters,
-	                    const std::shared_ptr<ContactUpdateListener>& listener) = 0;
+						const BindingParameters& parameters,
+						const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doClear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doFetchInstance(const SipUri& url,
-	                             const std::string& uniqueId,
-	                             const std::shared_ptr<ContactUpdateListener>& listener) = 0;
+								 const std::string& uniqueId,
+								 const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doMigration() = 0;
 
 	int countSipContacts(const sip_contact_t* contact);
 	bool errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
-	                                 const std::string& key,
-	                                 const std::shared_ptr<RegistrarDbListener>& listener);
+									 const std::string& key,
+									 const std::shared_ptr<RegistrarDbListener>& listener);
 	void fetchWithDomain(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive);
 	void notifyContactListener(const std::string& key, const std::string& uid);
 	void notifyStateListener() const;
@@ -198,6 +246,10 @@ protected:
 	bool mWritable = false;
 	bool mUseGlobalDomain;
 	bool mGruuEnabled;
+	std::unique_ptr<IExpirationHandler> mExpirationHandler;
+	std::unique_ptr<IActivityTracker> mActivityTracker;
+	std::unique_ptr<IContactManager> mContactManager;
+	std::unique_ptr<IPubSub> mPubSub;
 };
 
 } // namespace flexisip
