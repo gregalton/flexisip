@@ -36,7 +36,7 @@
 #include "flexisip/module.hh"
 
 #include "agent.hh"
-#include <flexisip/registrar/registar-listeners.hh>
+#include "include/flexisip/registrar/registrar-listeners.hh"
 #include "etchosts.hh"
 #include "plugin/plugin-loader.hh"
 #include "utils/uri-utils.hh"

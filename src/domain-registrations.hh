@@ -28,7 +28,7 @@
 
 #include "flexisip/common.hh"
 #include "flexisip/configmanager.hh"
-#include "registrar/registrar-listeners.hh"
+#include "include/flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/utils/sip-uri.hh"
 
 #include "registrar/registrar-db.hh"
