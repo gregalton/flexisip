@@ -26,7 +26,7 @@
 #include <linphone++/linphone.hh>
 
 #include "flexisip/configmanager.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "agent.hh"
 #include "registrar/registrar-db.hh"

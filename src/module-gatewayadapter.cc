@@ -21,7 +21,7 @@
 #include <sofia-sip/nua.h>
 
 #include "flexisip/module.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "agent.hh"
 #include "auth/db/authdb.hh"

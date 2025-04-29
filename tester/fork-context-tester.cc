@@ -19,7 +19,7 @@
 #include <chrono>
 
 #include "flexisip/module-router.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "agent.hh"
 #include "fork-context/fork-context-base.hh"

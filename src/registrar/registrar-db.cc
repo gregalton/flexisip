@@ -21,7 +21,7 @@
 #include <memory>
 
 #include "flexisip/configmanager.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/sofia-wrapper/msg-sip.hh"
 
 #include "agent.hh"

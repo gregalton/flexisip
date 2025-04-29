@@ -33,7 +33,7 @@
 #include <sofia-sip/sip_protos.h>
 
 #include "flexisip/configmanager.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "compat/hiredis/hiredis.h"
 #include "recordserializer.hh"

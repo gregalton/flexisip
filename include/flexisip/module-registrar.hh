@@ -22,7 +22,7 @@
 #include <sofia-sip/su_random.h>
 
 #include "flexisip/module.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/signal-handling/sofia-driven-signal-handler.hh"
 
 namespace flexisip {

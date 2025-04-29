@@ -21,7 +21,7 @@
 #include "bctoolbox/tester.h"
 
 #include "flexisip/module-registrar.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "registrar/extended-contact.hh"
 #include "registrar/record.hh"

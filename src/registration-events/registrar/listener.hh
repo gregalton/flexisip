@@ -21,7 +21,7 @@
 #include <linphone++/linphone.hh>
 #include <memory>
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 namespace flexisip {
 namespace RegistrationEvent {

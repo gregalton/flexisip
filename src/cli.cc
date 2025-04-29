@@ -29,7 +29,7 @@
 #include <bctoolbox/ownership.hh>
 
 #include "flexisip/logmanager.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/sofia-wrapper/msg-sip.hh"
 #include "flexisip/utils/sip-uri.hh"
 

@@ -3,7 +3,7 @@
 #include "registrar-db.hh"
 #include "record.hh"
 #include "extended-contact.hh"
-#include <flexisip/registrar/registar-listeners.hh>
+#include <flexisip/registrar/registrar-listeners.hh>
 
 namespace flexisip {
 

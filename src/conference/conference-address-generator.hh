@@ -20,7 +20,7 @@
 
 #include <linphone++/linphone.hh>
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/sofia-wrapper/home.hh"
 
 #include "registrar/registrar-db.hh"

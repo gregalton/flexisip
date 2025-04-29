@@ -23,7 +23,7 @@
 #include "flexisip/fork-context/fork-context.hh"
 #include "flexisip/module-router-interface.hh"
 #include "flexisip/module.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 namespace flexisip {
 

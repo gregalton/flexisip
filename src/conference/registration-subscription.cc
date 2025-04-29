@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "conference-server.hh"
 #include "registrar/extended-contact.hh"

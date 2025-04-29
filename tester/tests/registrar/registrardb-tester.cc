@@ -26,7 +26,7 @@
 #include "bctoolbox/tester.h"
 
 #include "flexisip/configmanager.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "flexisip/utils/sip-uri.hh"
 
 #include "registrar/record.hh"

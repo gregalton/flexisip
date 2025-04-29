@@ -25,7 +25,7 @@
 
 #include "linphone++/enums.hh"
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "agent.hh"
 #include "conference/chatroom-prefix.hh"

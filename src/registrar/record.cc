@@ -4,7 +4,7 @@
 
 #include "record.hh"
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "agent.hh"
 #include "binding-parameters.hh"

@@ -31,7 +31,7 @@
 #include "pushnotification/push-notification-error.hh"
 #include "pushnotification/service.hh"
 #include "registrar/registrar-db.hh"
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 #include "registrar/record.hh"
 #include "registrar/extended-contact.hh"
 

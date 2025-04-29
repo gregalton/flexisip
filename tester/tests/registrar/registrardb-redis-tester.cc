@@ -4,7 +4,7 @@
 
 #include <chrono>
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "registrardb-redis.hh"
 #include "utils/asserts.hh"

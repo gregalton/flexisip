@@ -18,7 +18,7 @@
 
 #include <belle-sip/belle-sip.h>
 
-#include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/registrar/registrar-listeners.hh"
 
 #include "presence-longterm.hh"
 #include "presentity-presenceinformation.hh"
