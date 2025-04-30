@@ -220,7 +220,6 @@ protected:
 	bool errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
 									 const std::string& key,
 									 const std::shared_ptr<Record>& record);
-	void notifyStateListener() const;
 
 	std::multimap<std::string, std::weak_ptr<ContactRegisteredListener>> mContactListenersMap;
 	std::list<std::shared_ptr<RegistrarDbStateListener>> mStateListeners;
