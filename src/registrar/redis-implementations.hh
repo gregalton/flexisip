@@ -1,8 +1,8 @@
 #pragma once
 
-#include "registrar-interfaces.hh"
-#include "registrardb-redis.hh"
-#include "redis-async-session.hh"
+#include "registrar/registrar-interfaces.hh"
+#include "registrar/registrardb-redis.hh"
+#include "registrar/redis-async-session.hh"
 
 namespace flexisip {
 

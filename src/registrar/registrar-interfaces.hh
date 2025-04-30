@@ -4,6 +4,9 @@
 #include <vector>
 #include <chrono>
 #include <functional>
+#include "sofia-wrapper/msg-sip.hh"
+#include "registrar/record.hh"
+#include "registrar/extended-contact.hh"
 
 namespace flexisip {
 
