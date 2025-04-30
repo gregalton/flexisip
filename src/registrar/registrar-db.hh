@@ -150,12 +150,6 @@ public:
 	};
 
 	void subscribe(const SipUri& url, std::weak_ptr<ContactRegisteredListener>&& listener);
-	/**
-	 * @return true if a subscribe was necessary (not already subscribed topic)
-	 */
-	bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener);
-	void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener);
-	void publish(const std::string& topic, const std::string& uid);
 
 	/**
 	 * Renews a registration for an existing contact.
