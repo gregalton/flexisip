@@ -128,13 +128,6 @@ private:
 	SipUri mAor;
 };
 
-void RegistrarDb::notifyContactListener(const string& key, const string& uid) {
-	auto sipUri = Record::makeUrlFromKey(key);
-	auto listener = make_shared<ContactNotificationListener>(uid, this, sipUri);
-	LOGD("Notify topic = %s, uid = %s", key.c_str(), uid.c_str());
-	RegistrarDb::get()->fetch(sipUri, listener, true);
-}
-
 void RegistrarDb::notifyContactListener(const shared_ptr<Record>& r, const string& uid) {
 	auto range = mContactListenersMap.equal_range(r->getKey());
 
@@ -235,7 +228,7 @@ int RegistrarDb::countSipContacts(const sip_contact_t* contact) {
 
 bool RegistrarDb::errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
                                               const string& key,
-                                              [[maybe_unused]] const shared_ptr<RegistrarDbListener>& listener) {
+                                              const shared_ptr<Record>& record) {
 	int nb_contact = this->countSipContacts(sip_contact);
 	int max_contact = Record::getMaxContacts();
 	if (nb_contact > max_contact) {

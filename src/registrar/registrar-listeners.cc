@@ -3,23 +3,12 @@
  */
 
 #include "registrar/registrar-listeners.hh"
+#include "registrar-db.hh"
+#include "record.hh"
+#include "extended-contact.hh"
+#include "flexisip/sofia-wrapper/msg-sip.hh"
 
 namespace flexisip {
-
-RegistrarDbListener::~RegistrarDbListener() {
-}
-
-ContactUpdateListener::~ContactUpdateListener() {
-}
-
-ContactRegisteredListener::~ContactRegisteredListener() {
-}
-
-LocalRegExpireListener::~LocalRegExpireListener() {
-}
-
-RegistrarDbStateListener::~RegistrarDbStateListener() {
-}
 
 void RenewalListener::onRecordFound(const std::shared_ptr<Record>& r) {
     if (r) {
