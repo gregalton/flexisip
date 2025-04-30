@@ -220,10 +220,10 @@ protected:
 	            const BindingParameters& parameters,
 	            const std::shared_ptr<ContactUpdateListener>& listener) override;
 	void doClear(const MsgSip& msg, const std::shared_ptr<ContactUpdateListener>& listener) override;
-	void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) override;
+	void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) const override;
 	void doFetchInstance(const SipUri& url,
 	                     const std::string& uniqueId,
-	                     const std::shared_ptr<ContactUpdateListener>& listener) override;
+	                     const std::shared_ptr<ContactUpdateListener>& listener) const override;
 	void doMigration() override;
 	bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener) override;
 	void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener) override;

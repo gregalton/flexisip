@@ -53,14 +53,14 @@ public:
 	}
 
 private:
-	void doBind(const sofiasip::MsgSip& msg,
+	void doBind(const sofiasip::MsgSip& sip,
 	            const BindingParameters& parameters,
 	            const std::shared_ptr<ContactUpdateListener>& listener) override;
-	void doClear(const sofiasip::MsgSip& msg, const std::shared_ptr<ContactUpdateListener>& listener) override;
-	void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) override;
+	void doClear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) override;
+	void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) const override;
 	void doFetchInstance(const SipUri& url,
 	                     const std::string& uniqueId,
-	                     const std::shared_ptr<ContactUpdateListener>& listener) override;
+	                     const std::shared_ptr<ContactUpdateListener>& listener) const override;
 	void doMigration() override;
 	void publish(const std::string& topic, const std::string& uid) override;
 
