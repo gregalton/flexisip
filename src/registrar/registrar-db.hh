@@ -88,10 +88,7 @@ public:
 		mContactManager->clear(sip, listener);
 	}
 
-	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) {
-		mContactManager->fetch(url, listener);
-	}
-
+	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive = false);
 	void fetchInstance(const SipUri& url, const std::string& uniqueId,
 					  const std::shared_ptr<ContactUpdateListener>& listener) {
 		mContactManager->fetchInstance(url, uniqueId, listener);
@@ -127,11 +124,6 @@ public:
 			  const BindingParameters& parameter,
 			  const std::shared_ptr<ContactUpdateListener>& listener);
 	void clear(const SipUri& url, const std::string& callId, const std::shared_ptr<ContactUpdateListener>& listener);
-	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive = false);
-	void fetch(const SipUri& url,
-			   const std::shared_ptr<ContactUpdateListener>& listener,
-			   bool includingDomains,
-			   bool recursive);
 	void fetchList(const std::vector<SipUri> urls, const std::shared_ptr<ListContactUpdateListener>& listener);
 	void notifyContactListener(const std::shared_ptr<Record>& r /*might be empty record*/, const std::string& uid);
 	void updateRemoteExpireTime(const std::string& key, time_t expireat);
