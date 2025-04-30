@@ -1,9 +1,9 @@
 #pragma once
 
-#include "registrar/registrar-db.hh"
-#include "registrar/record.hh"
-#include "registrar/extended-contact.hh"
-#include "sofia-wrapper/msg-sip.hh"
+#include "registrar-db.hh"
+#include "record.hh"
+#include "extended-contact.hh"
+#include "../sofia-wrapper/msg-sip.hh"
 
 namespace flexisip {
 
