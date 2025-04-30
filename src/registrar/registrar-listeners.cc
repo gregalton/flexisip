@@ -2,7 +2,7 @@
  *  SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-#include "include/flexisip/registrar/registrar-listeners.hh"
+#include "registrar/registrar-listeners.hh"
 
 namespace flexisip {
 
