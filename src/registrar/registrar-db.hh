@@ -219,7 +219,6 @@ protected:
 	bool errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
 									 const std::string& key,
 									 const std::shared_ptr<RegistrarDbListener>& listener);
-	void fetchWithDomain(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive);
 	void notifyContactListener(const std::string& key, const std::string& uid);
 
 	std::multimap<std::string, std::weak_ptr<ContactRegisteredListener>> mContactListenersMap;
