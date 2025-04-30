@@ -730,4 +730,10 @@ void RegistrarDb::renewRegistration(const ExtendedContact& contact,
     }
 }
 
+void RegistrarDb::updateRemoteExpireTime(const std::string& key, time_t expireat) {
+    if (mLocalRegExpire) {
+        mLocalRegExpire->update(key, expireat);
+    }
+}
+
 } // namespace flexisip

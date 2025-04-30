@@ -199,6 +199,10 @@ protected:
 			mRegMap.erase(key);
 		}
 		void update(const std::shared_ptr<Record>& record);
+		void update(const std::string& key, time_t expireat) {
+			std::lock_guard<std::mutex> lock(mMutex);
+			mRegMap[key] = expireat;
+		}
 		size_t countActives();
 		void removeExpiredBefore(time_t before);
 		LocalRegExpire(Agent* ag);
