@@ -227,15 +227,14 @@ int RegistrarDb::countSipContacts(const sip_contact_t* contact) {
 }
 
 bool RegistrarDb::errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
-                                              const string& key,
-                                              const shared_ptr<Record>& record) {
+                                             const std::string& key,
+                                             const std::shared_ptr<Record>& record) {
 	int nb_contact = this->countSipContacts(sip_contact);
 	int max_contact = Record::getMaxContacts();
 	if (nb_contact > max_contact) {
 		LOGD("Too many contacts in register %s %i > %i", key.c_str(), nb_contact, max_contact);
 		return true;
 	}
-
 	return false;
 }
 
@@ -466,7 +465,8 @@ private:
 // Max recursive step
 int RecursiveRegistrarDbListener::sMaxStep = 1;
 
-void RegistrarDb::fetch(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool allowDomainRegistrations, bool recursive) {
+void RegistrarDb::fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener,
+                       bool allowDomainRegistrations, bool recursive) {
 	auto gr = UriUtils::getParamValue(url.get()->url_params, "gr");
 	if (!gr.empty()) {
 		doFetchInstance(url, UriUtils::grToUniqueId(gr),
@@ -476,7 +476,8 @@ void RegistrarDb::fetch(const SipUri& url, const shared_ptr<ContactUpdateListene
 	}
 }
 
-void RegistrarDb::fetchWithDomain(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool recursive) {
+void RegistrarDb::fetchWithDomain(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener,
+                                 bool recursive) {
 	if (!url.getUser().empty()) {
 		/* If username is present in URI, search with and without the username */
 		auto domainOnlyUrl = url.replaceUser("");
