@@ -5,7 +5,7 @@ public:
 
     void fetchExpiringContacts(time_t startTimestamp,
                               float threshold,
-                              std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override;
+                              std::function<void(std::vector<ExtendedContact>&&)>&& callback) override;
 
     std::vector<std::shared_ptr<ExtendedContact>> fetchExpiringContacts(
         const std::chrono::system_clock::time_point& time,

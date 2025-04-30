@@ -20,7 +20,7 @@ public:
         const std::chrono::system_clock::time_point& time,
         const std::chrono::seconds& threshold) = 0;
     virtual void fetchExpiringContacts(time_t startTimestamp, float threshold,
-                                     std::function<void(std::vector<ExtendedContact>&&)>&& callback) const = 0;
+                                     std::function<void(std::vector<ExtendedContact>&&)>&& callback) = 0;
     virtual ~IExpirationHandler() = default;
 };
 

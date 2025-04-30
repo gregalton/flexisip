@@ -19,7 +19,7 @@ public:
     }
 
     void fetchExpiringContacts(time_t startTimestamp, float threshold,
-                             std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override {
+                             std::function<void(std::vector<ExtendedContact>&&)>&& callback) override {
         // Implementation will be moved from RegistrarDbRedisAsync
     }
 

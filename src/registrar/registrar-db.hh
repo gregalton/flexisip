@@ -71,7 +71,7 @@ public:
 	}
 
 	void fetchExpiringContacts(time_t startTimestamp, float threshold,
-							 std::function<void(std::vector<ExtendedContact>&&)>&& callback) const {
+							 std::function<void(std::vector<ExtendedContact>&&)>&& callback) {
 		mExpirationHandler->fetchExpiringContacts(startTimestamp, threshold, std::move(callback));
 	}
 
