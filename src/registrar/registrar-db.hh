@@ -153,9 +153,9 @@ public:
 	/**
 	 * @return true if a subscribe was necessary (not already subscribed topic)
 	 */
-	virtual bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener);
-	virtual void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener);
-	virtual void publish(const std::string& topic, const std::string& uid) = 0;
+	bool subscribe(const std::string& topic, std::weak_ptr<ContactRegisteredListener>&& listener);
+	void unsubscribe(const std::string& topic, const std::shared_ptr<ContactRegisteredListener>& listener);
+	void publish(const std::string& topic, const std::string& uid);
 
 	/**
 	 * Renews a registration for an existing contact.
