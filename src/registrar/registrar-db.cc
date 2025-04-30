@@ -474,23 +474,25 @@ private:
 int RecursiveRegistrarDbListener::sMaxStep = 1;
 
 void RegistrarDb::fetch(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool recursive) {
-	fetch(url, listener, false, recursive);
-}
-
-void RegistrarDb::fetch(const SipUri& url,
-                        const shared_ptr<ContactUpdateListener>& listener,
-                        bool includingDomains,
-                        bool recursive) {
-	if (includingDomains) {
-		fetchWithDomain(url, listener, recursive);
-		return;
-	}
 	auto gr = UriUtils::getParamValue(url.get()->url_params, "gr");
 	if (!gr.empty()) {
 		doFetchInstance(url, UriUtils::grToUniqueId(gr),
 		                recursive ? make_shared<RecursiveRegistrarDbListener>(this, listener, url) : listener);
 	} else {
 		doFetch(url, recursive ? make_shared<RecursiveRegistrarDbListener>(this, listener, url) : listener);
+	}
+}
+
+void RegistrarDb::fetchWithDomain(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool recursive) {
+	if (!url.getUser().empty()) {
+		/* If username is present in URI, search with and without the username */
+		auto domainOnlyUrl = url.replaceUser("");
+		auto agregator = make_shared<AgregatorRegistrarDbListener>(listener, 2);
+		fetch(url, agregator, recursive);
+		fetch(domainOnlyUrl, agregator, false);
+	} else {
+		/* else do a single search of course. */
+		fetch(url, listener, recursive);
 	}
 }
 
@@ -671,21 +673,6 @@ public:
 	virtual void onContactUpdated([[maybe_unused]] const shared_ptr<ExtendedContact>& ec) override {
 	}
 };
-
-void RegistrarDb::fetchWithDomain(const SipUri& url,
-                                  const shared_ptr<ContactUpdateListener>& listener,
-                                  bool recursive) {
-	if (!url.getUser().empty()) {
-		/* If username is present in URI, search with and without the username */
-		auto domainOnlyUrl = url.replaceUser("");
-		auto agregator = make_shared<AgregatorRegistrarDbListener>(listener, 2);
-		fetch(url, agregator, recursive);
-		fetch(domainOnlyUrl, agregator, false);
-	} else {
-		/* else do a single search of course. */
-		fetch(url, listener, recursive);
-	}
-}
 
 void RegistrarDb::renewRegistration(const ExtendedContact& contact,
                                    const std::shared_ptr<ContactUpdateListener>& listener) {

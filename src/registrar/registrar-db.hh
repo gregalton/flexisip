@@ -89,6 +89,7 @@ public:
 	}
 
 	void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive = false);
+	void fetchWithDomain(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive = false);
 	void fetchInstance(const SipUri& url, const std::string& uniqueId,
 					  const std::shared_ptr<ContactUpdateListener>& listener) {
 		mContactManager->fetchInstance(url, uniqueId, listener);
