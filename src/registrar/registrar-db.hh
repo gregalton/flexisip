@@ -180,6 +180,8 @@ public:
 		mLocalRegExpire->getRegisteredAors(aors);
 	}
 
+	void notifyStateListener() const;
+
 protected:
 	class LocalRegExpire {
 		std::map<std::string, time_t> mRegMap;
@@ -199,7 +201,7 @@ protected:
 		}
 		size_t countActives();
 		void removeExpiredBefore(time_t before);
-		LocalRegExpire(Agent* ag);
+		LocalRegExpire(Agent* ag) : mAgent(ag) {}
 		void clearAll() {
 			std::lock_guard<std::mutex> lock(mMutex);
 			mRegMap.clear();
@@ -226,9 +228,7 @@ protected:
 									 const std::shared_ptr<RegistrarDbListener>& listener);
 	void fetchWithDomain(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, bool recursive);
 	void notifyContactListener(const std::string& key, const std::string& uid);
-	void notifyStateListener() const;
 
-	RegistrarDb(Agent* ag);
 	std::multimap<std::string, std::weak_ptr<ContactRegisteredListener>> mContactListenersMap;
 	std::list<std::shared_ptr<RegistrarDbStateListener>> mStateListeners;
 	LocalRegExpire* mLocalRegExpire;
