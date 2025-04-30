@@ -37,7 +37,8 @@ public:
     virtual void bind(const MsgSip& sip, const BindingParameters& parameters, 
                      const std::shared_ptr<ContactUpdateListener>& listener) = 0;
     virtual void clear(const MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
-    virtual void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
+    virtual void fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, 
+                      bool allowDomainRegistrations = false, bool recursive = false) = 0;
     virtual void fetchInstance(const SipUri& url, const std::string& uniqueId,
                              const std::shared_ptr<ContactUpdateListener>& listener) = 0;
     virtual ~IContactManager() = default;

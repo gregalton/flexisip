@@ -473,7 +473,7 @@ private:
 // Max recursive step
 int RecursiveRegistrarDbListener::sMaxStep = 1;
 
-void RegistrarDb::fetch(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool recursive) {
+void RegistrarDb::fetch(const SipUri& url, const shared_ptr<ContactUpdateListener>& listener, bool allowDomainRegistrations, bool recursive) {
 	auto gr = UriUtils::getParamValue(url.get()->url_params, "gr");
 	if (!gr.empty()) {
 		doFetchInstance(url, UriUtils::grToUniqueId(gr),

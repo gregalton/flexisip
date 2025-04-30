@@ -112,7 +112,8 @@ void RedisContactManager::clear(const MsgSip& sip, const std::shared_ptr<Contact
     // This would include the Redis-specific clearing logic
 }
 
-void RedisContactManager::fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) {
+void RedisContactManager::fetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener, 
+                               bool allowDomainRegistrations, bool recursive) {
     // Implementation moved from RegistrarDbRedisAsync
     // This would include the Redis-specific fetching logic
 }
