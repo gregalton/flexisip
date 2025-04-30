@@ -205,10 +205,11 @@ protected:
 		void unsubscribe(LocalRegExpireListener* listener);
 		void notifyLocalRegExpireListener(unsigned int count);
 	};
-	virtual void doBind(const sofiasip::MsgSip& sip,
-						const BindingParameters& parameters,
+	virtual void doBind(const SipUri& url,
+						const sip_contact_t* contact,
+						const std::string& uid,
 						const std::shared_ptr<ContactUpdateListener>& listener) = 0;
-	virtual void doClear(const sofiasip::MsgSip& sip, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
+	virtual void doClear(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doFetch(const SipUri& url, const std::shared_ptr<ContactUpdateListener>& listener) = 0;
 	virtual void doFetchInstance(const SipUri& url,
 								 const std::string& uniqueId,
@@ -218,8 +219,8 @@ protected:
 	int countSipContacts(const sip_contact_t* contact);
 	bool errorOnTooMuchContactInBind(const sip_contact_t* sip_contact,
 									 const std::string& key,
-									 const std::shared_ptr<RegistrarDbListener>& listener);
-	void notifyContactListener(const std::string& key, const std::string& uid);
+									 const std::shared_ptr<Record>& record);
+	void notifyStateListener() const;
 
 	std::multimap<std::string, std::weak_ptr<ContactRegisteredListener>> mContactListenersMap;
 	std::list<std::shared_ptr<RegistrarDbStateListener>> mStateListeners;
