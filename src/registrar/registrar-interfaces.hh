@@ -4,7 +4,7 @@
 #include <vector>
 #include <chrono>
 #include <functional>
-#include "../sofia-wrapper/msg-sip.hh"
+#include "flexisip/sofia-wrapper/msg-sip.hh"
 #include "record.hh"
 #include "extended-contact.hh"
 

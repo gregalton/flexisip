@@ -15,6 +15,7 @@
 
 #include "sofia-sip/sip.h"
 #include "registrar-interfaces.hh"
+#include "flexisip/sofia-wrapper/msg-sip.hh"
 
 namespace sofiasip {
 class MsgSip;
