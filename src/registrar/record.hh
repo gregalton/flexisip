@@ -137,6 +137,15 @@ public:
 	}
 	bool isSame(const Record& other) const;
 
+	/**
+	 * Attempt to extend registrations for contacts that have push notification parameters.
+	 * This is a placeholder method for the registration extension feature.
+	 * @param extensionDuration Duration in seconds to extend the registration
+	 * @param maxExtensions Maximum number of extensions allowed per contact
+	 * @return Number of contacts that were successfully extended
+	 */
+	int extendRegistrations(int extensionDuration, int maxExtensions);
+
 	// A null pointer or an empty AOR leads to an empty key.
 	static std::string defineKeyFromUrl(const url_t* aor);
 	static SipUri makeUrlFromKey(const std::string& key);

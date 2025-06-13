@@ -397,6 +397,13 @@ bool Record::isSame(const Record& other) const {
 	return true;
 }
 
+int Record::extendRegistrations(int extensionDuration, int maxExtensions) {
+	// Stage 1: Minimal implementation - just log and return 0
+	SLOGD << "Record::extendRegistrations called for AOR " << mKey
+	      << " with duration=" << extensionDuration << " maxExtensions=" << maxExtensions;
+	return 0;
+}
+
 void Record::print(ostream& stream) const {
 	time_t now = getCurrentTime();
 	time_t offset = getTimeOffset(now);
