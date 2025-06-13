@@ -3,9 +3,9 @@ name: Build Docker Image
 
 on:
   push:
-    branches: [ "sip-device-broker-2.3" ]
+    branches: [ "sip-extender" ]
   pull_request:
-    branches: [ "sip-device-broker-2.3" ]
+    branches: [ "sip-extender" ]
   workflow_dispatch:
 
 jobs:
