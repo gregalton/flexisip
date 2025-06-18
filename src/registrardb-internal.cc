@@ -147,6 +147,12 @@ void RegistrarDbInternal::fetchExpiringContacts(time_t current_time,
 	callback(std::move(expiringContacts));
 }
 
+int RegistrarDbInternal::extendExpiringRegistrations() {
+	// Stage 2: Simplified interface - fixed 1 hour extensions, 24 hour maximum
+	SLOGD << "RegistrarDbInternal::extendExpiringRegistrations called";
+	return 0;
+}
+
 void RegistrarDbInternal::doClear(const MsgSip& msg, const shared_ptr<ContactUpdateListener>& listener) {
 	auto sip = msg.getSip();
 	string key = Record::defineKeyFromUrl(sip->sip_from->a_url);

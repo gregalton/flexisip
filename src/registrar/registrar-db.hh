@@ -75,6 +75,15 @@ public:
 	virtual void fetchExpiringContacts(time_t startTimestamp,
 	                                   float threshold,
 	                                   std::function<void(std::vector<ExtendedContact>&&)>&& callback) const = 0;
+
+	/**
+	 * Extend registrations for contacts that are about to expire.
+	 * Extensions are always 1 hour (3600 seconds) to match Kamailio gateway limits.
+	 * Maximum of 24 extensions (24 hours total) before requiring fresh registration.
+	 * @return Number of registrations that were successfully extended
+	 */
+	virtual int extendExpiringRegistrations() = 0;
+
 	void notifyContactListener(const std::shared_ptr<Record>& r /*might be empty record*/, const std::string& uid);
 	void updateRemoteExpireTime(const std::string& key, time_t expireat);
 	unsigned long countLocalActiveRecords() {

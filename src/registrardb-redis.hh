@@ -193,6 +193,8 @@ public:
 	                           float threshold,
 	                           std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override;
 
+	int extendExpiringRegistrations() override;
+
 	bool connect();
 	bool disconnect();
 

@@ -139,12 +139,10 @@ public:
 
 	/**
 	 * Attempt to extend registrations for contacts that have push notification parameters.
-	 * This is a placeholder method for the registration extension feature.
-	 * @param extensionDuration Duration in seconds to extend the registration
-	 * @param maxExtensions Maximum number of extensions allowed per contact
+	 * Extensions are always 1 hour (3600 seconds) with maximum of 24 extensions.
 	 * @return Number of contacts that were successfully extended
 	 */
-	int extendRegistrations(int extensionDuration, int maxExtensions);
+	int extendRegistrations();
 
 	// A null pointer or an empty AOR leads to an empty key.
 	static std::string defineKeyFromUrl(const url_t* aor);

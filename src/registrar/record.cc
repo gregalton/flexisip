@@ -397,10 +397,10 @@ bool Record::isSame(const Record& other) const {
 	return true;
 }
 
-int Record::extendRegistrations(int extensionDuration, int maxExtensions) {
-	// Stage 1: Minimal implementation - just log and return 0
+int Record::extendRegistrations() {
+	// Stage 2: Simplified interface - fixed 1 hour extensions, 24 hour maximum
 	SLOGD << "Record::extendRegistrations called for AOR " << mKey
-	      << " with duration=" << extensionDuration << " maxExtensions=" << maxExtensions;
+	      << " (1 hour extensions, 24 hour maximum)";
 	return 0;
 }
 

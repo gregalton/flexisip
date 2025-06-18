@@ -1153,4 +1153,10 @@ void RegistrarDbRedisAsync::doMigration() {
 	                    context);
 }
 
+int RegistrarDbRedisAsync::extendExpiringRegistrations() {
+	// Stage 2: Simplified interface - fixed 1 hour extensions, 24 hour maximum
+	SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations called";
+	return 0;
+}
+
 } // namespace flexisip
