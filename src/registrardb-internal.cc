@@ -148,9 +148,28 @@ void RegistrarDbInternal::fetchExpiringContacts(time_t current_time,
 }
 
 int RegistrarDbInternal::extendExpiringRegistrations() {
-	// Stage 2: Simplified interface - fixed 1 hour extensions, 24 hour maximum
+	// Stage 4: Actually iterate through records and call extension logic
 	SLOGD << "RegistrarDbInternal::extendExpiringRegistrations called";
-	return 0;
+
+	int totalExtended = 0;
+
+	// Iterate through all records in the internal database
+	for (auto& [key, record] : mRecords) {
+		if (record) {
+			try {
+				int extended = record->extendRegistrations();
+				if (extended > 0) {
+					totalExtended += extended;
+					SLOGD << "Extended " << extended << " registrations for AOR " << key;
+				}
+			} catch (const std::exception& e) {
+				SLOGE << "Error extending registrations for AOR " << key << ": " << e.what();
+			}
+		}
+	}
+
+	SLOGD << "RegistrarDbInternal::extendExpiringRegistrations completed - " << totalExtended << " total extensions";
+	return totalExtended;
 }
 
 void RegistrarDbInternal::doClear(const MsgSip& msg, const shared_ptr<ContactUpdateListener>& listener) {

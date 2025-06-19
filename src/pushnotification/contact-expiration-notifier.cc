@@ -60,6 +60,15 @@ ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
 void ContactExpirationNotifier::onTimerElapsed() {
 	SLOGI << kLogPrefix << "Sending service push notifications to wake up mobile devices that have passed "
 	      << mLifetimeThreshold << " of their expiration time...";
+
+	// Stage 4: Test call to extension logic
+	try {
+		int extended = const_cast<RegistrarDb&>(mRegistrar).extendExpiringRegistrations();
+		SLOGD << kLogPrefix << "Extension test: found " << extended << " eligible registrations";
+	} catch (const std::exception& e) {
+		SLOGE << kLogPrefix << "Error in extension test: " << e.what();
+	}
+
 	mRegistrar.fetchExpiringContacts(
 	    getCurrentTime(), mLifetimeThreshold, [weakPNService = mPNService](auto&& contacts) mutable {
 		    static constexpr const auto pushType = pn::PushType::Background;
