@@ -398,10 +398,52 @@ bool Record::isSame(const Record& other) const {
 }
 
 int Record::extendRegistrations() {
-	// Stage 2: Simplified interface - fixed 1 hour extensions, 24 hour maximum
+	// Stage 3: Add contact iteration logic
 	SLOGD << "Record::extendRegistrations called for AOR " << mKey
 	      << " (1 hour extensions, 24 hour maximum)";
-	return 0;
+
+	int extendedCount = 0;
+	time_t currentTime = getCurrentTime();
+
+	// Iterate through all contacts in this record
+	for (auto& contact : mContacts) {
+		if (!contact) {
+			continue; // Skip null contacts
+		}
+
+		// Stage 3: Just log contact details for now
+		SLOGD << "Examining contact " << contact->contactId()
+		      << " expired=" << (contact->isExpired() ? "yes" : "no")
+		      << " expire_time=" << contact->getExpireTime()
+		      << " current_time=" << currentTime;
+
+		// Check if contact has push notification parameters
+		bool hasPushParams = false;
+		if (contact->mSipContact && contact->mSipContact->m_params) {
+			const char* pnProvider = msg_params_find(contact->mSipContact->m_params, "pn-provider");
+			const char* pnType = msg_params_find(contact->mSipContact->m_params, "pn-type");
+			if (pnProvider || pnType) {
+				hasPushParams = true;
+				SLOGD << "Contact " << contact->contactId() << " has push notification parameters: "
+				      << "pn-provider=" << (pnProvider ? pnProvider : "none")
+				      << " pn-type=" << (pnType ? pnType : "none");
+			}
+		}
+
+		if (!hasPushParams) {
+			SLOGD << "Contact " << contact->contactId() << " has no push notification parameters, skipping";
+			continue;
+		}
+
+		// Stage 3: Just count eligible contacts, don't extend yet
+		if (!contact->isExpired()) {
+			extendedCount++;
+			SLOGD << "Contact " << contact->contactId() << " is eligible for extension";
+		}
+	}
+
+	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
+	return extendedCount;
 }
 
 void Record::print(ostream& stream) const {
