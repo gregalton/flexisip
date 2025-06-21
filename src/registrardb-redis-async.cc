@@ -1163,10 +1163,11 @@ int RegistrarDbRedisAsync::extendExpiringRegistrations() {
 	}
 
 	// Use fetchExpiringContacts to find candidates that are close to expiring
-	// We'll use a threshold of 0.8 (80% of expiration time) to catch contacts before they expire
+	// We'll use a threshold of 0.2 (20% of expiration time) to match ContactExpirationNotifier
+	// This aligns with register-wakeup-threshold=20 configuration
 	int totalExtended = 0;
 
-	fetchExpiringContacts(getCurrentTime(), 0.8f, [this, &totalExtended](std::vector<ExtendedContact>&& contacts) {
+	fetchExpiringContacts(getCurrentTime(), 0.2f, [this, &totalExtended](std::vector<ExtendedContact>&& contacts) {
 		SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Found " << contacts.size() << " expiring contacts";
 
 		// Group contacts by AOR to create Record objects
