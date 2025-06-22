@@ -439,6 +439,8 @@ int Record::extendRegistrations() {
 		if (!contact->isExpired()) {
 			extendedCount++;
 			SLOGD << "Contact " << contact->contactId() << " is eligible for extension";
+			// TODO: Next stage - implement actual extension by updating Redis database
+			// Will add 3600 seconds to contact expiration time
 		}
 	}
 
