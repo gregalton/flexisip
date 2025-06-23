@@ -403,7 +403,6 @@ int Record::extendRegistrations() {
 	      << " (1 hour extensions, 24 hour maximum)";
 
 	int extendedCount = 0;
-	time_t currentTime = getCurrentTime();
 
 	// Ultra-minimal version - just log and return without touching contacts
 	SLOGD << "Record::extendRegistrations - Ultra-minimal version for crash testing";
