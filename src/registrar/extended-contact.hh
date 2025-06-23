@@ -95,6 +95,9 @@ struct ExtendedContact {
 	std::time_t getRegisterTime() const {
 		return mRegisterTime;
 	}
+	void setRegisterTime(std::time_t newTime) {
+		mRegisterTime = newTime;
+	}
 	std::chrono::seconds getSipExpires() const {
 		return mExpires;
 	}

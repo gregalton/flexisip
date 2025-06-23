@@ -441,9 +441,9 @@ int Record::extendRegistrations() {
 			std::time_t oldRegisterTime = contact->getRegisterTime();
 			std::time_t newRegisterTime = currentTime;
 
-			// Access private member to update registration time
+			// Use setter method to update registration time
 			// This extends the registration by resetting the expiration countdown
-			contact->mRegisterTime = newRegisterTime;
+			contact->setRegisterTime(newRegisterTime);
 
 			extendedCount++;
 			SLOGD << "Extended contact " << contact->contactId()
