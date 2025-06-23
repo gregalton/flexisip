@@ -435,12 +435,20 @@ int Record::extendRegistrations() {
 			continue;
 		}
 
-		// Stage 3: Just count eligible contacts, don't extend yet
+		// Extend eligible contacts by updating their registration time
 		if (!contact->isExpired()) {
+			// Update the registration time to current time, effectively extending the registration
+			time_t oldRegisterTime = contact->getRegisterTime();
+			time_t newRegisterTime = currentTime;
+
+			// Access private member to update registration time
+			// This extends the registration by resetting the expiration countdown
+			contact->mRegisterTime = newRegisterTime;
+
 			extendedCount++;
-			SLOGD << "Contact " << contact->contactId() << " is eligible for extension";
-			// TODO: Next stage - implement actual extension by updating Redis database
-			// Will add 3600 seconds to contact expiration time
+			SLOGD << "Extended contact " << contact->contactId()
+			      << " by updating registration time from " << oldRegisterTime
+			      << " to " << newRegisterTime;
 		}
 	}
 
