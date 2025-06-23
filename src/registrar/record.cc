@@ -438,8 +438,8 @@ int Record::extendRegistrations() {
 		// Extend eligible contacts by updating their registration time
 		if (!contact->isExpired()) {
 			// Update the registration time to current time, effectively extending the registration
-			time_t oldRegisterTime = contact->getRegisterTime();
-			time_t newRegisterTime = currentTime;
+			std::time_t oldRegisterTime = contact->getRegisterTime();
+			std::time_t newRegisterTime = currentTime;
 
 			// Access private member to update registration time
 			// This extends the registration by resetting the expiration countdown
