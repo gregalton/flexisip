@@ -405,37 +405,13 @@ int Record::extendRegistrations() {
 	int extendedCount = 0;
 	time_t currentTime = getCurrentTime();
 
-	// Iterate through all contacts in this record
-	for (auto& contact : mContacts) {
-		if (!contact) {
-			continue; // Skip null contacts
-		}
+	// Ultra-minimal version - just log and return without touching contacts
+	SLOGD << "Record::extendRegistrations - Ultra-minimal version for crash testing";
+	SLOGD << "mContacts size: " << mContacts.size();
 
-		// Stage 3: Just log contact details for now
-		SLOGD << "Examining contact " << contact->contactId()
-		      << " expired=" << (contact->isExpired() ? "yes" : "no")
-		      << " expire_time=" << contact->getExpireTime()
-		      << " current_time=" << currentTime;
-
-		// Safely extend eligible contacts with error handling
-		try {
-			if (!contact->isExpired()) {
-				SLOGD << "Contact is eligible for extension";
-
-				// Simple extension - just increment counter for now
-				extendedCount++;
-				SLOGD << "Extension count incremented to " << extendedCount;
-
-				// TODO: Add actual extension logic once we confirm this is safe
-			} else {
-				SLOGD << "Contact is expired, skipping";
-			}
-		} catch (const std::exception& e) {
-			SLOGE << "Error in extension logic: " << e.what();
-		} catch (...) {
-			SLOGE << "Unknown error in extension logic";
-		}
-	}
+	// Don't iterate through contacts yet - just return a safe count
+	extendedCount = 0;
+	SLOGD << "Returning safe count: " << extendedCount;
 
 	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
 	return extendedCount;
