@@ -417,24 +417,6 @@ int Record::extendRegistrations() {
 		      << " expire_time=" << contact->getExpireTime()
 		      << " current_time=" << currentTime;
 
-		// Check if contact has push notification parameters
-		bool hasPushParams = false;
-		if (contact->mSipContact && contact->mSipContact->m_params) {
-			const char* pnProvider = msg_params_find(contact->mSipContact->m_params, "pn-provider");
-			const char* pnType = msg_params_find(contact->mSipContact->m_params, "pn-type");
-			if (pnProvider || pnType) {
-				hasPushParams = true;
-				SLOGD << "Contact " << contact->contactId() << " has push notification parameters: "
-				      << "pn-provider=" << (pnProvider ? pnProvider : "none")
-				      << " pn-type=" << (pnType ? pnType : "none");
-			}
-		}
-
-		if (!hasPushParams) {
-			SLOGD << "Contact " << contact->contactId() << " has no push notification parameters, skipping";
-			continue;
-		}
-
 		// Extend eligible contacts by updating their registration time
 		if (!contact->isExpired()) {
 			// Update the registration time to current time, effectively extending the registration
