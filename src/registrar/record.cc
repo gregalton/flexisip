@@ -432,41 +432,16 @@ int Record::extendRegistrations() {
 		}
 	}
 
-	// Phase 2: Extend collected contacts (after iteration completes)
+	// Phase 2: Log what we would extend (no actual modifications)
 	for (auto& contact : contactsToExtend) {
-		try {
-			// Create ExtendedContactCommon from existing contact
-			ExtendedContactCommon ecc(contact->mPath, contact->mCallId, contact->mKey.str());
-
-			// Create new ExtendedContact with current time as updateTime
-			auto refreshedContact = make_unique<ExtendedContact>(
-				ecc,
-				contact->mSipContact,
-				contact->getSipExpires().count(),  // Keep same expires duration
-				contact->mCSeq + 1,  // Increment CSeq to satisfy SIP RFC requirements
-				currentTime,  // This is the key - new updateTime
-				contact->mAlias,
-				contact->mAcceptHeader,
-				contact->mUserAgent
-			);
-
-			// Preserve other properties
-			refreshedContact->mUsedAsRoute = contact->mUsedAsRoute;
-			refreshedContact->mIsFallback = contact->mIsFallback;
-
-			// Use existing update mechanism to replace the contact
-			insertOrUpdateBinding(std::move(refreshedContact), nullptr);
-
-			extendedCount++;
-			SLOGD << "Extended contact " << contact->contactId()
-			      << " by creating refreshed contact with current updateTime";
-
-		} catch (const std::exception& e) {
-			SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
-		} catch (...) {
-			SLOGE << "Unknown error extending contact " << contact->contactId();
-		}
+		SLOGD << "Would extend contact " << contact->contactId()
+		      << " from registerTime=" << contact->getRegisterTime()
+		      << " to registerTime=" << currentTime
+		      << " (difference=" << (currentTime - contact->getRegisterTime()) << " seconds)";
+		extendedCount++;
 	}
+
+	SLOGD << "Extension simulation complete - would have extended " << extendedCount << " contacts";
 
 	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
 	return extendedCount;
