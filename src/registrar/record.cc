@@ -412,7 +412,9 @@ int Record::extendRegistrations() {
 		return extendedCount;
 	}
 
-	// Iterate through all contacts in this record
+	// Phase 1: Collect contacts that need extension (read-only iteration)
+	std::vector<std::shared_ptr<ExtendedContact>> contactsToExtend;
+
 	for (auto& contact : mContacts) {
 		if (!contact) {
 			continue; // Skip null contacts
@@ -423,22 +425,46 @@ int Record::extendRegistrations() {
 		      << " expire_time=" << contact->getExpireTime()
 		      << " current_time=" << currentTime;
 
-		// Minimal safe extension - just use setRegisterTime
+		// Collect eligible contacts without modifying anything
 		if (!contact->isExpired()) {
-			try {
-				SLOGD << "Contact is eligible for extension - using setRegisterTime";
+			SLOGD << "Contact is eligible for extension - adding to extension list";
+			contactsToExtend.push_back(contact);
+		}
+	}
 
-				// Simple approach: just update the registration time
-				contact->setRegisterTime(currentTime);
+	// Phase 2: Extend collected contacts (after iteration completes)
+	for (auto& contact : contactsToExtend) {
+		try {
+			// Create ExtendedContactCommon from existing contact
+			ExtendedContactCommon ecc(contact->mPath, contact->mCallId, contact->mKey.str());
 
-				extendedCount++;
-				SLOGD << "Extended contact by updating registration time to " << currentTime;
+			// Create new ExtendedContact with current time as updateTime
+			auto refreshedContact = make_unique<ExtendedContact>(
+				ecc,
+				contact->mSipContact,
+				contact->getSipExpires().count(),  // Keep same expires duration
+				contact->mCSeq + 1,  // Increment CSeq to satisfy SIP RFC requirements
+				currentTime,  // This is the key - new updateTime
+				contact->mAlias,
+				contact->mAcceptHeader,
+				contact->mUserAgent
+			);
 
-			} catch (const std::exception& e) {
-				SLOGE << "Error extending contact: " << e.what();
-			} catch (...) {
-				SLOGE << "Unknown error extending contact";
-			}
+			// Preserve other properties
+			refreshedContact->mUsedAsRoute = contact->mUsedAsRoute;
+			refreshedContact->mIsFallback = contact->mIsFallback;
+
+			// Use existing update mechanism to replace the contact
+			insertOrUpdateBinding(std::move(refreshedContact), nullptr);
+
+			extendedCount++;
+			SLOGD << "Extended contact " << contact->contactId()
+			      << " by creating refreshed contact with current updateTime";
+
+		} catch (const std::exception& e) {
+			SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
+		} catch (...) {
+			SLOGE << "Unknown error extending contact " << contact->contactId();
 		}
 	}
 
