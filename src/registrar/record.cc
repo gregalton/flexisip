@@ -404,6 +404,14 @@ int Record::extendRegistrations() {
 	int extendedCount = 0;
 	time_t currentTime = getCurrentTime();
 
+	// Debug: Log contact count and details
+	SLOGD << "mContacts size: " << mContacts.size();
+	if (mContacts.empty()) {
+		SLOGD << "No contacts found in Record - returning 0";
+		SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
+		return extendedCount;
+	}
+
 	// Iterate through all contacts in this record
 	for (auto& contact : mContacts) {
 		if (!contact) {
@@ -426,7 +434,7 @@ int Record::extendRegistrations() {
 					ecc,
 					contact->mSipContact,
 					contact->getSipExpires().count(),  // Keep same expires duration
-					contact->mCSeq,
+					contact->mCSeq + 1,  // Increment CSeq to satisfy SIP RFC requirements
 					currentTime,  // This is the key - new updateTime
 					contact->mAlias,
 					contact->mAcceptHeader,
