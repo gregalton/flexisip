@@ -398,19 +398,59 @@ bool Record::isSame(const Record& other) const {
 }
 
 int Record::extendRegistrations() {
-	// Stage 3: Add contact iteration logic
 	SLOGD << "Record::extendRegistrations called for AOR " << mKey
 	      << " (1 hour extensions, 24 hour maximum)";
 
 	int extendedCount = 0;
+	time_t currentTime = getCurrentTime();
 
-	// Ultra-minimal version - just log and return without touching contacts
-	SLOGD << "Record::extendRegistrations - Ultra-minimal version for crash testing";
-	SLOGD << "mContacts size: " << mContacts.size();
+	// Iterate through all contacts in this record
+	for (auto& contact : mContacts) {
+		if (!contact) {
+			continue; // Skip null contacts
+		}
 
-	// Don't iterate through contacts yet - just return a safe count
-	extendedCount = 0;
-	SLOGD << "Returning safe count: " << extendedCount;
+		SLOGD << "Examining contact " << contact->contactId()
+		      << " expired=" << (contact->isExpired() ? "yes" : "no")
+		      << " expire_time=" << contact->getExpireTime()
+		      << " current_time=" << currentTime;
+
+		// Extend eligible contacts by creating a refreshed contact
+		if (!contact->isExpired()) {
+			try {
+				// Create ExtendedContactCommon from existing contact
+				ExtendedContactCommon ecc(contact->mPath, contact->mCallId, contact->mKey.str());
+
+				// Create new ExtendedContact with current time as updateTime
+				auto refreshedContact = make_unique<ExtendedContact>(
+					ecc,
+					contact->mSipContact,
+					contact->getSipExpires().count(),  // Keep same expires duration
+					contact->mCSeq,
+					currentTime,  // This is the key - new updateTime
+					contact->mAlias,
+					contact->mAcceptHeader,
+					contact->mUserAgent
+				);
+
+				// Preserve other properties
+				refreshedContact->mUsedAsRoute = contact->mUsedAsRoute;
+				refreshedContact->mIsFallback = contact->mIsFallback;
+
+				// Use existing update mechanism to replace the contact
+				insertOrUpdateBinding(std::move(refreshedContact), nullptr);
+
+				extendedCount++;
+				SLOGD << "Extended contact " << contact->contactId()
+				      << " by creating refreshed contact with current updateTime";
+
+			} catch (const std::exception& e) {
+				SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
+			} catch (...) {
+				SLOGE << "Unknown error extending contact " << contact->contactId();
+			}
+		}
+	}
 
 	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
 	return extendedCount;
