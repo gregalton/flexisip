@@ -423,39 +423,21 @@ int Record::extendRegistrations() {
 		      << " expire_time=" << contact->getExpireTime()
 		      << " current_time=" << currentTime;
 
-		// Extend eligible contacts by creating a refreshed contact
+		// Minimal safe extension - just use setRegisterTime
 		if (!contact->isExpired()) {
 			try {
-				// Create ExtendedContactCommon from existing contact
-				ExtendedContactCommon ecc(contact->mPath, contact->mCallId, contact->mKey.str());
+				SLOGD << "Contact is eligible for extension - using setRegisterTime";
 
-				// Create new ExtendedContact with current time as updateTime
-				auto refreshedContact = make_unique<ExtendedContact>(
-					ecc,
-					contact->mSipContact,
-					contact->getSipExpires().count(),  // Keep same expires duration
-					contact->mCSeq + 1,  // Increment CSeq to satisfy SIP RFC requirements
-					currentTime,  // This is the key - new updateTime
-					contact->mAlias,
-					contact->mAcceptHeader,
-					contact->mUserAgent
-				);
-
-				// Preserve other properties
-				refreshedContact->mUsedAsRoute = contact->mUsedAsRoute;
-				refreshedContact->mIsFallback = contact->mIsFallback;
-
-				// Use existing update mechanism to replace the contact
-				insertOrUpdateBinding(std::move(refreshedContact), nullptr);
+				// Simple approach: just update the registration time
+				contact->setRegisterTime(currentTime);
 
 				extendedCount++;
-				SLOGD << "Extended contact " << contact->contactId()
-				      << " by creating refreshed contact with current updateTime";
+				SLOGD << "Extended contact by updating registration time to " << currentTime;
 
 			} catch (const std::exception& e) {
-				SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
+				SLOGE << "Error extending contact: " << e.what();
 			} catch (...) {
-				SLOGE << "Unknown error extending contact " << contact->contactId();
+				SLOGE << "Unknown error extending contact";
 			}
 		}
 	}
