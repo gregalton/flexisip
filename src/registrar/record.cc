@@ -475,8 +475,8 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 			SLOGE << "Failed to create request URL";
 			return false;
 		}
-		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, "REGISTER",
-		                                      reinterpret_cast<const url_string_t*>(requestUrl), "SIP/2.0");
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, nullptr,
+		                                      reinterpret_cast<const url_string_t*>(requestUrl), nullptr);
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
