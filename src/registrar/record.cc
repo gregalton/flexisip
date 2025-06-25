@@ -432,19 +432,163 @@ int Record::extendRegistrations() {
 		}
 	}
 
-	// Phase 2: Log what we would extend (no actual modifications)
+	// Phase 2: Create synthetic REGISTER requests for collected contacts
 	for (auto& contact : contactsToExtend) {
-		SLOGD << "Would extend contact " << contact->contactId()
-		      << " from registerTime=" << contact->getRegisterTime()
-		      << " to registerTime=" << currentTime
-		      << " (difference=" << (currentTime - contact->getRegisterTime()) << " seconds)";
-		extendedCount++;
-	}
+		try {
+			SLOGD << "Creating synthetic REGISTER for contact " << contact->contactId()
+			      << " with CSeq=" << (contact->mCSeq + 1);
 
-	SLOGD << "Extension simulation complete - would have extended " << extendedCount << " contacts";
+			// Create synthetic REGISTER request
+			if (createSyntheticRegister(contact, currentTime)) {
+				extendedCount++;
+				SLOGD << "Successfully created synthetic REGISTER for contact " << contact->contactId();
+			} else {
+				SLOGE << "Failed to create synthetic REGISTER for contact " << contact->contactId();
+			}
+
+		} catch (const std::exception& e) {
+			SLOGE << "Error creating synthetic REGISTER for contact " << contact->contactId() << ": " << e.what();
+		} catch (...) {
+			SLOGE << "Unknown error creating synthetic REGISTER for contact " << contact->contactId();
+		}
+	}
 
 	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
 	return extendedCount;
+}
+
+bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& contact, time_t currentTime) {
+	try {
+		// Create a synthetic REGISTER request that mimics a real client registration
+		// Following RFC 3261 Section 10.2 - Constructing the REGISTER Request
+
+		auto syntheticMsg = std::make_shared<sofiasip::MsgSip>();
+		auto* home = syntheticMsg->getHome();
+		auto* sip = syntheticMsg->getSip();
+
+		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
+		std::string requestUri = "sip:" + mUrl.getHost();
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, requestUri.c_str(), "SIP/2.0");
+		if (!sip->sip_request) {
+			SLOGE << "Failed to create REGISTER request line";
+			return false;
+		}
+
+		// RFC 3261 Section 10.2: To header contains the address-of-record being registered
+		sip->sip_to = sip_to_create(home, reinterpret_cast<const url_string_t*>(mUrl.get()));
+		if (!sip->sip_to) {
+			SLOGE << "Failed to create To header";
+			return false;
+		}
+
+		// RFC 3261 Section 10.2: From header contains the address-of-record (same as To)
+		sip->sip_from = sip_from_create(home, reinterpret_cast<const url_string_t*>(mUrl.get()));
+		if (!sip->sip_from) {
+			SLOGE << "Failed to create From header";
+			return false;
+		}
+		// Add tag to From header (RFC 3261 Section 8.1.1.3)
+		sip->sip_from->a_tag = su_sprintf(home, "ext-%lu", (unsigned long)currentTime);
+
+		// RFC 3261 Section 8.1.1.4: Call-ID must be unique for this registration
+		std::string callId = "ext-" + std::to_string(currentTime) + "-" + contact->mCallId;
+		sip->sip_call_id = sip_call_id_create(home, callId.c_str());
+		if (!sip->sip_call_id) {
+			SLOGE << "Failed to create Call-ID header";
+			return false;
+		}
+
+		// RFC 3261 Section 8.1.1.5: CSeq must be higher than previous registration
+		sip->sip_cseq = sip_cseq_create(home, contact->mCSeq + 1, SIP_METHOD_REGISTER);
+		if (!sip->sip_cseq) {
+			SLOGE << "Failed to create CSeq header";
+			return false;
+		}
+
+		// RFC 3261 Section 8.1.1.6: Max-Forwards prevents loops
+		sip->sip_max_forwards = sip_max_forwards_create(home, 70);
+		if (!sip->sip_max_forwards) {
+			SLOGE << "Failed to create Max-Forwards header";
+			return false;
+		}
+
+		// RFC 3261 Section 8.1.1.7: Via header for response routing
+		std::string viaBranch = "z9hG4bK-ext-" + std::to_string(currentTime);
+		std::string viaValue = "SIP/2.0/UDP 127.0.0.1:5060;branch=" + viaBranch;
+		sip->sip_via = sip_via_make(home, viaValue.c_str());
+		if (!sip->sip_via) {
+			SLOGE << "Failed to create Via header";
+			return false;
+		}
+
+		// RFC 3261 Section 10.2.1: Contact header contains the contact being registered
+		// For refresh registration, use the same Contact URI (Section 10.2.4)
+		sip->sip_contact = sip_contact_dup(home, contact->mSipContact);
+		if (!sip->sip_contact) {
+			SLOGE << "Failed to create Contact header";
+			return false;
+		}
+
+		// RFC 3261 Section 10.2.1.1: Expires header sets registration lifetime
+		sip->sip_expires = sip_expires_create(home, contact->getSipExpires().count());
+		if (!sip->sip_expires) {
+			SLOGE << "Failed to create Expires header";
+			return false;
+		}
+
+		// Optional headers
+		if (!contact->mUserAgent.empty()) {
+			sip->sip_user_agent = sip_user_agent_make(home, contact->mUserAgent.c_str());
+		}
+
+		// Path header if present (RFC 3327)
+		if (!contact->mPath.empty()) {
+			sip->sip_path = contact->mPath.toSofiaType(home);
+		}
+
+		// Set Content-Length to 0 (no body)
+		sip->sip_content_length = sip_content_length_create(home, 0);
+
+		SLOGD << "Created synthetic REGISTER request: " << requestUri
+		      << " CSeq=" << (contact->mCSeq + 1)
+		      << " Call-ID=" << callId;
+
+		// Inject the synthetic request into the module chain
+		return injectSyntheticRequest(syntheticMsg);
+
+	} catch (const std::exception& e) {
+		SLOGE << "Exception in createSyntheticRegister: " << e.what();
+		return false;
+	} catch (...) {
+		SLOGE << "Unknown exception in createSyntheticRegister";
+		return false;
+	}
+}
+
+bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg) {
+	try {
+		// We need access to the Agent to inject the request
+		// For now, we'll need to get this through the RegistrarDb
+		// This is a limitation we'll need to address
+
+		SLOGE << "injectSyntheticRequest not yet implemented - need Agent access";
+		SLOGD << "Synthetic REGISTER would be injected here: " << *syntheticMsg;
+
+		// TODO: Implement actual injection once we have Agent access
+		// The injection should be:
+		// 1. Create RequestSipEvent from syntheticMsg
+		// 2. Call agent->injectRequestEvent(requestEvent)
+		// 3. Let it flow through the complete module chain
+
+		return false; // Not implemented yet
+
+	} catch (const std::exception& e) {
+		SLOGE << "Exception in injectSyntheticRequest: " << e.what();
+		return false;
+	} catch (...) {
+		SLOGE << "Unknown exception in injectSyntheticRequest";
+		return false;
+	}
 }
 
 void Record::print(ostream& stream) const {

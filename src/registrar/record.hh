@@ -144,6 +144,21 @@ public:
 	 */
 	int extendRegistrations();
 
+	/**
+	 * Create a synthetic REGISTER request for extending a contact registration.
+	 * @param contact The contact to extend
+	 * @param currentTime Current timestamp for the extension
+	 * @return true if synthetic REGISTER was created successfully
+	 */
+	bool createSyntheticRegister(const std::shared_ptr<ExtendedContact>& contact, time_t currentTime);
+
+	/**
+	 * Inject a synthetic REGISTER request into the module chain.
+	 * @param syntheticMsg The synthetic SIP message to inject
+	 * @return true if injection was successful
+	 */
+	bool injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg);
+
 	// A null pointer or an empty AOR leads to an empty key.
 	static std::string defineKeyFromUrl(const url_t* aor);
 	static SipUri makeUrlFromKey(const std::string& key);
