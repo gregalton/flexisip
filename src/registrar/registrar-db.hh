@@ -129,6 +129,14 @@ public:
 		mLocalRegExpire->getRegisteredAors(aors);
 	}
 
+	/**
+	 * Get the Agent instance associated with this RegistrarDb.
+	 * @return Pointer to the Agent instance
+	 */
+	Agent* getAgent() const {
+		return mAgent;
+	}
+
 protected:
 	class LocalRegExpire {
 		std::map<std::string, time_t> mRegMap;

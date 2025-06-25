@@ -5,6 +5,7 @@
 #include "record.hh"
 
 #include "flexisip/registrar/registar-listeners.hh"
+#include "flexisip/event.hh"
 
 #include "agent.hh"
 #include "binding-parameters.hh"
@@ -12,6 +13,7 @@
 #include "exceptions.hh"
 #include "extended-contact.hh"
 #include "registrar-db.hh"
+#include "tools/tool_utils.hh"
 
 using namespace std;
 
@@ -467,22 +469,22 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 		auto* sip = syntheticMsg->getSip();
 
 		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
-		std::string requestUri = "sip:" + mUrl.getHost();
-		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, requestUri.c_str(), "SIP/2.0");
+		std::string requestUri = "sip:" + mAor.getHost();
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, requestUri.c_str(), nullptr);
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
 		}
 
 		// RFC 3261 Section 10.2: To header contains the address-of-record being registered
-		sip->sip_to = sip_to_create(home, reinterpret_cast<const url_string_t*>(mUrl.get()));
+		sip->sip_to = sip_to_create(home, reinterpret_cast<const url_string_t*>(mAor.get()));
 		if (!sip->sip_to) {
 			SLOGE << "Failed to create To header";
 			return false;
 		}
 
 		// RFC 3261 Section 10.2: From header contains the address-of-record (same as To)
-		sip->sip_from = sip_from_create(home, reinterpret_cast<const url_string_t*>(mUrl.get()));
+		sip->sip_from = sip_from_create(home, reinterpret_cast<const url_string_t*>(mAor.get()));
 		if (!sip->sip_from) {
 			SLOGE << "Failed to create From header";
 			return false;
@@ -506,7 +508,7 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 		}
 
 		// RFC 3261 Section 8.1.1.6: Max-Forwards prevents loops
-		sip->sip_max_forwards = sip_max_forwards_create(home, 70);
+		sip->sip_max_forwards = sip_max_forwards_make(home, "70");
 		if (!sip->sip_max_forwards) {
 			SLOGE << "Failed to create Max-Forwards header";
 			return false;
@@ -543,7 +545,8 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 		// Path header if present (RFC 3327)
 		if (!contact->mPath.empty()) {
-			sip->sip_path = contact->mPath.toSofiaType(home);
+			// Convert std::list<std::string> to sip_path_t* using utility function
+			sip->sip_path = path_fromstl(home, contact->mPath);
 		}
 
 		// Set Content-Length to 0 (no body)
@@ -567,20 +570,35 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg) {
 	try {
-		// We need access to the Agent to inject the request
-		// For now, we'll need to get this through the RegistrarDb
-		// This is a limitation we'll need to address
+		// Get Agent through RegistrarDb
+		auto* registrarDb = RegistrarDb::get();
+		if (!registrarDb) {
+			SLOGE << "RegistrarDb not available for synthetic request injection";
+			return false;
+		}
 
-		SLOGE << "injectSyntheticRequest not yet implemented - need Agent access";
-		SLOGD << "Synthetic REGISTER would be injected here: " << *syntheticMsg;
+		auto* agent = registrarDb->getAgent();
+		if (!agent) {
+			SLOGE << "Agent not available for synthetic request injection";
+			return false;
+		}
 
-		// TODO: Implement actual injection once we have Agent access
-		// The injection should be:
-		// 1. Create RequestSipEvent from syntheticMsg
-		// 2. Call agent->injectRequestEvent(requestEvent)
-		// 3. Let it flow through the complete module chain
+		// Create RequestSipEvent from synthetic message
+		auto requestEvent = std::make_shared<RequestSipEvent>(syntheticMsg);
+		if (!requestEvent) {
+			SLOGE << "Failed to create RequestSipEvent from synthetic message";
+			return false;
+		}
 
-		return false; // Not implemented yet
+		SLOGD << "Injecting synthetic REGISTER into module chain: " << *syntheticMsg;
+
+		// Inject the synthetic request into the module chain
+		// This will start from the first module (SanityChecker) and flow through
+		// the complete chain including Authentication, Registrar, etc.
+		agent->injectRequestEvent(requestEvent);
+
+		SLOGD << "Successfully injected synthetic REGISTER request";
+		return true;
 
 	} catch (const std::exception& e) {
 		SLOGE << "Exception in injectSyntheticRequest: " << e.what();
