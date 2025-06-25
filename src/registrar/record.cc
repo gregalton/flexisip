@@ -12,6 +12,7 @@
 #include "change-set.hh"
 #include "exceptions.hh"
 #include "extended-contact.hh"
+#include "incoming-agent.hh"
 #include "registrar-db.hh"
 #include "tools/tool_utils.hh"
 
@@ -470,7 +471,13 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
 		std::string requestUri = "sip:" + mAor.getHost();
-		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, requestUri.c_str(), nullptr);
+		url_t* requestUrl = url_make(home, requestUri.c_str());
+		if (!requestUrl) {
+			SLOGE << "Failed to create request URL";
+			return false;
+		}
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, requestUri.c_str(),
+		                                      reinterpret_cast<const url_string_t*>(requestUrl), "SIP/2.0");
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
@@ -584,7 +591,15 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 		}
 
 		// Create RequestSipEvent from synthetic message
-		auto requestEvent = std::make_shared<RequestSipEvent>(syntheticMsg);
+		// RequestSipEvent needs IncomingAgent and tport_t* parameters
+		// For synthetic requests, we can use nullptr for tport since it's internal
+		auto incomingAgent = std::dynamic_pointer_cast<IncomingAgent>(agent->shared_from_this());
+		if (!incomingAgent) {
+			SLOGE << "Failed to get IncomingAgent for synthetic request";
+			return false;
+		}
+
+		auto requestEvent = std::make_shared<RequestSipEvent>(incomingAgent, syntheticMsg, nullptr);
 		if (!requestEvent) {
 			SLOGE << "Failed to create RequestSipEvent from synthetic message";
 			return false;
