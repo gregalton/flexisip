@@ -13,6 +13,7 @@
 #include "exceptions.hh"
 #include "extended-contact.hh"
 #include "registrar-db.hh"
+#include "sofia-wrapper/utilities.hh"
 #include "tools/tool_utils.hh"
 
 using namespace std;
@@ -470,27 +471,23 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
 		std::string requestUri = "sip:" + mAor.getHost();
-		url_t* requestUrl = url_make(home, requestUri.c_str());
-		if (!requestUrl) {
-			SLOGE << "Failed to create request URL";
-			return false;
-		}
 		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, nullptr,
-		                                      reinterpret_cast<const url_string_t*>(requestUrl), nullptr);
+		                                      sofiasip::toSofiaSipUrlUnion(requestUri),
+		                                      nullptr);
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
 		}
 
 		// RFC 3261 Section 10.2: To header contains the address-of-record being registered
-		sip->sip_to = sip_to_create(home, reinterpret_cast<const url_string_t*>(mAor.get()));
+		sip->sip_to = sip_to_create(home, sofiasip::toSofiaSipUrlUnion(mAor));
 		if (!sip->sip_to) {
 			SLOGE << "Failed to create To header";
 			return false;
 		}
 
 		// RFC 3261 Section 10.2: From header contains the address-of-record (same as To)
-		sip->sip_from = sip_from_create(home, reinterpret_cast<const url_string_t*>(mAor.get()));
+		sip->sip_from = sip_from_create(home, sofiasip::toSofiaSipUrlUnion(mAor));
 		if (!sip->sip_from) {
 			SLOGE << "Failed to create From header";
 			return false;
