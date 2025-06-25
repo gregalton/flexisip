@@ -12,7 +12,6 @@
 #include "change-set.hh"
 #include "exceptions.hh"
 #include "extended-contact.hh"
-#include "incoming-agent.hh"
 #include "registrar-db.hh"
 #include "tools/tool_utils.hh"
 
@@ -592,8 +591,9 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 
 		// Create RequestSipEvent from synthetic message
 		// RequestSipEvent needs IncomingAgent and tport_t* parameters
+		// Agent inherits from IncomingAgent, so we can use it directly
 		// For synthetic requests, we can use nullptr for tport since it's internal
-		auto incomingAgent = std::dynamic_pointer_cast<IncomingAgent>(agent->shared_from_this());
+		auto incomingAgent = agent->getIncomingAgent();
 		if (!incomingAgent) {
 			SLOGE << "Failed to get IncomingAgent for synthetic request";
 			return false;
