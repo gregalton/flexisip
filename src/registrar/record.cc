@@ -471,7 +471,7 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
 		std::string requestUri = "sip:" + mAor.getHost();
-		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, "REGISTER", (url_string_t*)requestUri.c_str(), NULL);
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, "REGISTER", (void*)requestUri.c_str(), NULL);
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
