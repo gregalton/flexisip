@@ -20,6 +20,7 @@
 #include "registrardb-redis.hh"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <ctime>
 #include <iterator>
