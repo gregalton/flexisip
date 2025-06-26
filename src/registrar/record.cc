@@ -462,6 +462,12 @@ int Record::extendRegistrations() {
 
 bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& contact, time_t currentTime) {
 	try {
+		SLOGD << "=== createSyntheticRegister START ===";
+		SLOGD << "Contact URL: " << contact->urlAsString();
+		SLOGD << "Original expires in: " << (contact->getSipExpireTime() - currentTime) << " seconds";
+		SLOGD << "Original CSeq: " << contact->mCSeq;
+		SLOGD << "Current time: " << currentTime;
+
 		// Create a synthetic REGISTER request that mimics a real client registration
 		// Following RFC 3261 Section 10.2 - Constructing the REGISTER Request
 
@@ -558,8 +564,10 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 		      << " CSeq=" << (contact->mCSeq + 1)
 		      << " Call-ID=" << callId;
 
-		// Inject the synthetic request into the module chain
-		return injectSyntheticRequest(syntheticMsg);
+		SLOGD << "=== createSyntheticRegister SUCCESS (short-circuiting injection) ===";
+		// TODO: Inject the synthetic request into the module chain
+		// return injectSyntheticRequest(syntheticMsg);
+		return true; // Short-circuit for now to test creation logic
 
 	} catch (const std::exception& e) {
 		SLOGE << "Exception in createSyntheticRegister: " << e.what();
