@@ -471,12 +471,8 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
 		std::string requestUri = "sip:" + mAor.getHost();
-		url_t* requestUrl = url_make(home, requestUri.c_str());
-		if (!requestUrl) {
-			SLOGE << "Failed to create request URL";
-			return false;
-		}
-		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, "REGISTER", (url_string_t*)requestUrl, NULL);
+		auto requestUrlUnion = sofiasip::toSofiaSipUrlUnion(requestUri);
+		sip->sip_request = sip_request_create(home, SIP_METHOD_REGISTER, nullptr, requestUrlUnion, NULL);
 		if (!sip->sip_request) {
 			SLOGE << "Failed to create REGISTER request line";
 			return false;
