@@ -6,6 +6,7 @@
 
 #include "flexisip/registrar/registar-listeners.hh"
 #include "flexisip/event.hh"
+#include "flexisip/module.hh"
 
 #include "agent.hh"
 #include "binding-parameters.hh"
