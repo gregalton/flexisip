@@ -581,34 +581,35 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 
 bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg) {
 	try {
+		SLOGD << "=== injectSyntheticRequest START ===";
+
 		// Get Agent through RegistrarDb
+		SLOGD << "Getting RegistrarDb instance...";
 		auto* registrarDb = RegistrarDb::get();
 		if (!registrarDb) {
 			SLOGE << "RegistrarDb not available for synthetic request injection";
 			return false;
 		}
+		SLOGD << "RegistrarDb obtained successfully";
 
+		SLOGD << "Getting Agent from RegistrarDb...";
 		auto* agent = registrarDb->getAgent();
 		if (!agent) {
 			SLOGE << "Agent not available for synthetic request injection";
 			return false;
 		}
+		SLOGD << "Agent obtained successfully";
 
 		// Create RequestSipEvent from synthetic message
-		// RequestSipEvent needs IncomingAgent and tport_t* parameters
-		// Agent inherits from IncomingAgent, so we can use it directly
-		// For synthetic requests, we can use nullptr for tport since it's internal
-		auto incomingAgent = agent->getIncomingAgent();
-		if (!incomingAgent) {
-			SLOGE << "Failed to get IncomingAgent for synthetic request";
-			return false;
-		}
-
-		auto requestEvent = std::make_shared<RequestSipEvent>(incomingAgent, syntheticMsg, nullptr);
+		// Agent inherits from IncomingAgent, so we can use agent directly
+		// For synthetic requests, we use nullptr for tport since it's internal
+		SLOGD << "Creating RequestSipEvent with agent as IncomingAgent...";
+		auto requestEvent = std::make_shared<RequestSipEvent>(agent->shared_from_this(), syntheticMsg, nullptr);
 		if (!requestEvent) {
 			SLOGE << "Failed to create RequestSipEvent from synthetic message";
 			return false;
 		}
+		SLOGD << "RequestSipEvent created successfully";
 
 		SLOGD << "Injecting synthetic REGISTER into module chain: " << *syntheticMsg;
 
