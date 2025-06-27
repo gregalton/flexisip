@@ -613,14 +613,20 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 
 		SLOGD << "Synthetic REGISTER ready for injection: " << *syntheticMsg;
 
-		// TEMPORARY: Test RequestSipEvent creation without actual injection
-		SLOGD << "=== TESTING: RequestSipEvent created successfully, skipping injection to avoid crash ===";
-		SLOGD << "RequestSipEvent details - Agent: " << (void*)agent << ", MsgSip: " << (void*)syntheticMsg.get();
+		// Find the Registrar module directly to bypass other modules
+		SLOGD << "Finding Registrar module to inject directly...";
+		auto registrarModule = agent->findModule("Registrar");
+		if (!registrarModule) {
+			SLOGE << "Registrar module not found in agent module chain";
+			return false;
+		}
+		SLOGD << "Found Registrar module: " << registrarModule->getModuleName();
 
-		// TODO: Re-enable injection once we confirm RequestSipEvent creation is stable
-		// agent->injectRequestEvent(requestEvent);
+		// Inject directly into Registrar module, bypassing Authentication and other modules
+		SLOGD << "Injecting synthetic REGISTER directly into Registrar module...";
+		registrarModule->onRequest(requestEvent);
 
-		SLOGD << "Successfully created synthetic REGISTER request (injection skipped for safety)";
+		SLOGD << "Successfully injected synthetic REGISTER directly into Registrar module";
 		return true;
 
 	} catch (const std::exception& e) {
