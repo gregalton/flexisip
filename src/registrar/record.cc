@@ -564,10 +564,11 @@ bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& con
 		      << " CSeq=" << (contact->mCSeq + 1)
 		      << " Call-ID=" << callId;
 
-		SLOGD << "=== createSyntheticRegister SUCCESS (short-circuiting injection) ===";
-		// TODO: Inject the synthetic request into the module chain
-		// return injectSyntheticRequest(syntheticMsg);
-		return true; // Short-circuit for now to test creation logic
+		SLOGD << "=== createSyntheticRegister INJECTING into module chain ===";
+		// Inject the synthetic request into the module chain
+		bool injectionResult = injectSyntheticRequest(syntheticMsg);
+		SLOGD << "=== createSyntheticRegister injection result: " << (injectionResult ? "SUCCESS" : "FAILED") << " ===";
+		return injectionResult;
 
 	} catch (const std::exception& e) {
 		SLOGE << "Exception in createSyntheticRegister: " << e.what();
