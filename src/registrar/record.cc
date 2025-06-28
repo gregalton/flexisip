@@ -625,7 +625,7 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 
 		// Inject directly into Registrar module, bypassing Authentication and other modules
 		SLOGD << "Injecting synthetic REGISTER directly into Registrar module...";
-		registrarModule->onRequest(requestEvent);
+		registrarModule->processRequest(requestEvent);
 
 		SLOGD << "Successfully injected synthetic REGISTER directly into Registrar module";
 		return true;
