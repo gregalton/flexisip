@@ -615,16 +615,14 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 		SLOGD << "Synthetic REGISTER ready for injection: " << *syntheticMsg;
 
 		// Use full module chain to ensure proper gateway propagation
-		SLOGD << "Injecting synthetic REGISTER through full module chain for gateway propagation...";
+		SLOGD << "Sending synthetic REGISTER through full module chain for gateway propagation...";
 
-		// Set the current module to start from the beginning of the chain
+		// Use sendRequestEvent to process from the beginning of the module chain
 		// This ensures the synthetic REGISTER goes through SanityChecker, Authentication,
-		// GatewayAdapter, Registrar, Forward, etc. - just like a real REGISTER
-		requestEvent->mCurrModule.reset(); // Start from beginning of module chain
+		// GatewayAdapter, Registrar, Forward, etc. - just like a real network REGISTER
+		agent->sendRequestEvent(requestEvent);
 
-		agent->injectRequestEvent(requestEvent);
-
-		SLOGD << "Successfully injected synthetic REGISTER through full module chain";
+		SLOGD << "Successfully sent synthetic REGISTER through full module chain";
 		return true;
 
 	} catch (const std::exception& e) {
