@@ -614,20 +614,17 @@ bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticM
 
 		SLOGD << "Synthetic REGISTER ready for injection: " << *syntheticMsg;
 
-		// Find the Registrar module directly to bypass other modules
-		SLOGD << "Finding Registrar module to inject directly...";
-		auto registrarModule = agent->findModule("Registrar");
-		if (!registrarModule) {
-			SLOGE << "Registrar module not found in agent module chain";
-			return false;
-		}
-		SLOGD << "Found Registrar module: " << registrarModule->getModuleName();
+		// Use full module chain to ensure proper gateway propagation
+		SLOGD << "Injecting synthetic REGISTER through full module chain for gateway propagation...";
 
-		// Inject directly into Registrar module, bypassing Authentication and other modules
-		SLOGD << "Injecting synthetic REGISTER directly into Registrar module...";
-		registrarModule->processRequest(requestEvent);
+		// Set the current module to start from the beginning of the chain
+		// This ensures the synthetic REGISTER goes through SanityChecker, Authentication,
+		// GatewayAdapter, Registrar, Forward, etc. - just like a real REGISTER
+		requestEvent->mCurrModule.reset(); // Start from beginning of module chain
 
-		SLOGD << "Successfully injected synthetic REGISTER directly into Registrar module";
+		agent->injectRequestEvent(requestEvent);
+
+		SLOGD << "Successfully injected synthetic REGISTER through full module chain";
 		return true;
 
 	} catch (const std::exception& e) {
