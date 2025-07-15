@@ -118,6 +118,8 @@ RUN apt-get update && apt-get install -y \
 
 # Install additional runtime dependencies
 RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
     libpq5 \
     libsoci-core4.0 \
     libsoci-sqlite3-4.0 \
@@ -130,6 +132,12 @@ RUN apt-get update && apt-get install -y \
     libgsm1 \
     libxml2 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Firebase authentication dependencies for push notifications
+RUN pip3 install --no-cache-dir \
+    google-auth \
+    google-auth-httplib2 \
+    requests
 
 # Workaround for dynamic linker needing libiconv.so at runtime
 RUN ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libiconv.so && \
