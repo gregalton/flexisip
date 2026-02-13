@@ -147,28 +147,30 @@ void RegistrarDbInternal::fetchExpiringContacts(time_t current_time,
 	callback(std::move(expiringContacts));
 }
 
+/**
+ * Extend registrations for all records in the internal (non-Redis) database.
+ *
+ * Unlike the Redis async version, this iterates all records directly since
+ * they are in-memory. The Redis version uses fetchExpiringContacts (Lua script)
+ * with a 0.2 threshold to pre-filter; here we let Record::extendRegistrations()
+ * handle eligibility (non-expired contacts only).
+ */
 int RegistrarDbInternal::extendExpiringRegistrations() {
-	// Stage 4: Actually iterate through records and call extension logic
-	SLOGD << "RegistrarDbInternal::extendExpiringRegistrations called";
-
 	int totalExtended = 0;
 
-	// Iterate through all records in the internal database
 	for (auto& [key, record] : mRecords) {
-		if (record) {
-			try {
-				int extended = record->extendRegistrations();
-				if (extended > 0) {
-					totalExtended += extended;
-					SLOGD << "Extended " << extended << " registrations for AOR " << key;
-				}
-			} catch (const std::exception& e) {
-				SLOGE << "Error extending registrations for AOR " << key << ": " << e.what();
-			}
+		if (!record) continue;
+		try {
+			int extended = record->extendRegistrations();
+			if (extended > 0) totalExtended += extended;
+		} catch (const std::exception& e) {
+			SLOGE << "Error extending registrations for AOR " << key << ": " << e.what();
 		}
 	}
 
-	SLOGD << "RegistrarDbInternal::extendExpiringRegistrations completed - " << totalExtended << " total extensions";
+	if (totalExtended > 0) {
+		SLOGI << "Extended " << totalExtended << " registrations across internal database";
+	}
 	return totalExtended;
 }
 

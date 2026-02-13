@@ -145,19 +145,15 @@ public:
 	int extendRegistrations();
 
 	/**
-	 * Create a synthetic REGISTER request for extending a contact registration.
-	 * @param contact The contact to extend
-	 * @param currentTime Current timestamp for the extension
-	 * @return true if synthetic REGISTER was created successfully
+	 * Create an ExtendedContact with extended expiration time for registration extension.
+	 * This reuses the same logic as natural REGISTER processing.
+	 * @param originalContact The original contact to extend
+	 * @param extensionSeconds Number of seconds to add to expiration time
+	 * @return New ExtendedContact with extended expiration, or nullptr on failure
 	 */
-	bool createSyntheticRegister(const std::shared_ptr<ExtendedContact>& contact, time_t currentTime);
-
-	/**
-	 * Inject a synthetic REGISTER request into the module chain.
-	 * @param syntheticMsg The synthetic SIP message to inject
-	 * @return true if injection was successful
-	 */
-	bool injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg);
+	std::unique_ptr<ExtendedContact> createExtendedContactForExtension(
+		const std::shared_ptr<ExtendedContact>& originalContact,
+		time_t extensionSeconds);
 
 	// A null pointer or an empty AOR leads to an empty key.
 	static std::string defineKeyFromUrl(const url_t* aor);

@@ -5,8 +5,6 @@
 #include "record.hh"
 
 #include "flexisip/registrar/registar-listeners.hh"
-#include "flexisip/event.hh"
-#include "flexisip/module.hh"
 
 #include "agent.hh"
 #include "binding-parameters.hh"
@@ -14,7 +12,6 @@
 #include "exceptions.hh"
 #include "extended-contact.hh"
 #include "registrar-db.hh"
-#include "sofia-wrapper/utilities.hh"
 #include "tools/tool_utils.hh"
 
 using namespace std;
@@ -401,236 +398,111 @@ bool Record::isSame(const Record& other) const {
 	return true;
 }
 
+/**
+ * Extend registrations for all non-expired contacts in this Record.
+ *
+ * Called by ContactExpirationNotifier when contacts are nearing expiration.
+ * Each extension resets the contact's expiry to 3600s from now, keeping
+ * sleeping mobile devices reachable for incoming calls. Kamailio is notified
+ * of the updated registration automatically via its reg-event subscription.
+ *
+ * There is no explicit maximum extension count — extensions continue as long
+ * as the ContactExpirationNotifier timer fires and the contact hasn't expired.
+ * In practice, the device should re-register naturally within 24 hours.
+ */
 int Record::extendRegistrations() {
-	SLOGD << "Record::extendRegistrations called for AOR " << mKey
-	      << " (1 hour extensions, 24 hour maximum)";
-
 	int extendedCount = 0;
 	time_t currentTime = getCurrentTime();
+	const time_t extensionSeconds = 3600; // Always extend by 1 hour
 
-	// Debug: Log contact count and details
-	SLOGD << "mContacts size: " << mContacts.size();
 	if (mContacts.empty()) {
-		SLOGD << "No contacts found in Record - returning 0";
-		SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
-		return extendedCount;
+		return 0;
 	}
 
-	// Phase 1: Collect contacts that need extension (read-only iteration)
+	SLOGI << "Extending registrations for AOR " << mKey << " (" << mContacts.size() << " contacts)";
+
+	// Phase 1: Collect non-expired contacts eligible for extension
 	std::vector<std::shared_ptr<ExtendedContact>> contactsToExtend;
-
 	for (auto& contact : mContacts) {
-		if (!contact) {
-			continue; // Skip null contacts
-		}
-
-		SLOGD << "Examining contact " << contact->contactId()
-		      << " expired=" << (contact->isExpired() ? "yes" : "no")
-		      << " expire_time=" << contact->getExpireTime()
-		      << " current_time=" << currentTime;
-
-		// Collect eligible contacts without modifying anything
-		if (!contact->isExpired()) {
-			SLOGD << "Contact is eligible for extension - adding to extension list";
+		if (contact && !contact->isExpired()) {
 			contactsToExtend.push_back(contact);
 		}
 	}
 
-	// Phase 2: Create synthetic REGISTER requests for collected contacts
+	// Phase 2: Extend each contact using insertOrUpdateBinding (same path as natural REGISTER)
 	for (auto& contact : contactsToExtend) {
 		try {
-			SLOGD << "Creating synthetic REGISTER for contact " << contact->contactId()
-			      << " with CSeq=" << (contact->mCSeq + 1);
-
-			// Create synthetic REGISTER request
-			if (createSyntheticRegister(contact, currentTime)) {
-				extendedCount++;
-				SLOGD << "Successfully created synthetic REGISTER for contact " << contact->contactId();
-			} else {
-				SLOGE << "Failed to create synthetic REGISTER for contact " << contact->contactId();
+			auto extendedContact = createExtendedContactForExtension(contact, extensionSeconds);
+			if (!extendedContact) {
+				SLOGE << "Failed to create extended contact for " << contact->contactId();
+				continue;
 			}
 
+			insertOrUpdateBinding(std::move(extendedContact), nullptr);
+			extendedCount++;
+
+			SLOGD << "Extended registration for " << contact->contactId()
+			      << " (new expiry: " << (currentTime + extensionSeconds) << ")";
+
 		} catch (const std::exception& e) {
-			SLOGE << "Error creating synthetic REGISTER for contact " << contact->contactId() << ": " << e.what();
-		} catch (...) {
-			SLOGE << "Unknown error creating synthetic REGISTER for contact " << contact->contactId();
+			SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
 		}
 	}
 
-	SLOGD << "Record::extendRegistrations found " << extendedCount << " contacts eligible for extension";
+	SLOGI << "Extended " << extendedCount << "/" << contactsToExtend.size()
+	      << " contacts for AOR " << mKey;
 	return extendedCount;
 }
 
-bool Record::createSyntheticRegister(const std::shared_ptr<ExtendedContact>& contact, time_t currentTime) {
+/**
+ * Create a new ExtendedContact with an extended expiration time.
+ *
+ * Uses the same ExtendedContact constructor as natural REGISTER processing.
+ * The CSeq is preserved so the device's next real REGISTER (with incremented
+ * CSeq) won't be rejected as a retransmission by Kamailio.
+ */
+std::unique_ptr<ExtendedContact> Record::createExtendedContactForExtension(
+	const std::shared_ptr<ExtendedContact>& originalContact,
+	time_t extensionSeconds) {
+
 	try {
-		SLOGD << "=== createSyntheticRegister START ===";
-		SLOGD << "Contact URL: " << contact->urlAsString();
-		SLOGD << "Original expires in: " << (contact->getSipExpireTime() - currentTime) << " seconds";
-		SLOGD << "Original CSeq: " << contact->mCSeq;
-		SLOGD << "Current time: " << currentTime;
-
-		// Create a synthetic REGISTER request that mimics a real client registration
-		// Following RFC 3261 Section 10.2 - Constructing the REGISTER Request
-
-		auto syntheticMsg = std::make_shared<sofiasip::MsgSip>();
-		auto* home = syntheticMsg->getHome();
-		auto* sip = syntheticMsg->getSip();
-
-		// RFC 3261 Section 10.2: Request-URI contains the domain being registered to
-		std::string requestUri = "sip:" + mAor.getHost();
-		auto requestUrlUnion = sofiasip::toSofiaSipUrlUnion(requestUri);
-		sip->sip_request = sip_request_create(home, sip_method_register, "register", requestUrlUnion, "SIP/2.0");
-		if (!sip->sip_request) {
-			SLOGE << "Failed to create REGISTER request line";
-			return false;
+		// Validate required fields (caller guarantees non-null, but mSipContact/mCallId are essential)
+		if (!originalContact->mSipContact) {
+			SLOGE << "Cannot extend contact " << originalContact->contactId() << ": missing SIP contact";
+			return nullptr;
+		}
+		if (originalContact->mCallId.empty()) {
+			SLOGE << "Cannot extend contact " << originalContact->contactId() << ": missing Call-ID";
+			return nullptr;
 		}
 
-		// RFC 3261 Section 10.2: To header contains the address-of-record being registered
-		sip->sip_to = sip_to_create(home, sofiasip::toSofiaSipUrlUnion(mAor));
-		if (!sip->sip_to) {
-			SLOGE << "Failed to create To header";
-			return false;
+		time_t currentTime = getCurrentTime();
+		ExtendedContactCommon ecc(originalContact->mPath, originalContact->mCallId, originalContact->mKey.str());
+
+		// Absolute expiration = currentTime (mRegisterTime) + extensionSeconds (mExpires)
+		auto extendedContact = std::make_unique<ExtendedContact>(
+			ecc,
+			originalContact->mSipContact,
+			extensionSeconds,               // Registration duration (3600s)
+			originalContact->mCSeq,         // Preserve CSeq for device's next REGISTER
+			currentTime,                    // New mRegisterTime
+			originalContact->mAlias,
+			originalContact->mAcceptHeader,
+			originalContact->mUserAgent
+		);
+
+		if (!extendedContact || !extendedContact->mSipContact) {
+			SLOGE << "Failed to create extended contact for " << originalContact->contactId();
+			return nullptr;
 		}
 
-		// RFC 3261 Section 10.2: From header contains the address-of-record (same as To)
-		sip->sip_from = sip_from_create(home, sofiasip::toSofiaSipUrlUnion(mAor));
-		if (!sip->sip_from) {
-			SLOGE << "Failed to create From header";
-			return false;
-		}
-		// Add tag to From header (RFC 3261 Section 8.1.1.3)
-		sip->sip_from->a_tag = su_sprintf(home, "ext-%lu", (unsigned long)currentTime);
-
-		// RFC 3261 Section 8.1.1.4: Call-ID must be unique for this registration
-		std::string callId = "ext-" + std::to_string(currentTime) + "-" + contact->mCallId;
-		sip->sip_call_id = sip_call_id_create(home, callId.c_str());
-		if (!sip->sip_call_id) {
-			SLOGE << "Failed to create Call-ID header";
-			return false;
-		}
-
-		// RFC 3261 Section 8.1.1.5: CSeq must be higher than previous registration
-		sip->sip_cseq = sip_cseq_create(home, contact->mCSeq + 1, SIP_METHOD_REGISTER);
-		if (!sip->sip_cseq) {
-			SLOGE << "Failed to create CSeq header";
-			return false;
-		}
-
-		// RFC 3261 Section 8.1.1.6: Max-Forwards prevents loops
-		sip->sip_max_forwards = sip_max_forwards_make(home, "70");
-		if (!sip->sip_max_forwards) {
-			SLOGE << "Failed to create Max-Forwards header";
-			return false;
-		}
-
-		// RFC 3261 Section 8.1.1.7: Via header for response routing
-		std::string viaBranch = "z9hG4bK-ext-" + std::to_string(currentTime);
-		std::string viaValue = "SIP/2.0/UDP 127.0.0.1:5060;branch=" + viaBranch;
-		sip->sip_via = sip_via_make(home, viaValue.c_str());
-		if (!sip->sip_via) {
-			SLOGE << "Failed to create Via header";
-			return false;
-		}
-
-		// RFC 3261 Section 10.2.1: Contact header contains the contact being registered
-		// For refresh registration, use the same Contact URI (Section 10.2.4)
-		sip->sip_contact = sip_contact_dup(home, contact->mSipContact);
-		if (!sip->sip_contact) {
-			SLOGE << "Failed to create Contact header";
-			return false;
-		}
-
-		// RFC 3261 Section 10.2.1.1: Expires header sets registration lifetime
-		sip->sip_expires = sip_expires_create(home, contact->getSipExpires().count());
-		if (!sip->sip_expires) {
-			SLOGE << "Failed to create Expires header";
-			return false;
-		}
-
-		// Optional headers
-		if (!contact->mUserAgent.empty()) {
-			sip->sip_user_agent = sip_user_agent_make(home, contact->mUserAgent.c_str());
-		}
-
-		// Path header if present (RFC 3327)
-		if (!contact->mPath.empty()) {
-			// Convert std::list<std::string> to sip_path_t* using utility function
-			sip->sip_path = path_fromstl(home, contact->mPath);
-		}
-
-		// Set Content-Length to 0 (no body)
-		sip->sip_content_length = sip_content_length_create(home, 0);
-
-		SLOGD << "Created synthetic REGISTER request: " << requestUri
-		      << " CSeq=" << (contact->mCSeq + 1)
-		      << " Call-ID=" << callId;
-
-		SLOGD << "=== createSyntheticRegister INJECTING into module chain ===";
-		// Inject the synthetic request into the module chain
-		bool injectionResult = injectSyntheticRequest(syntheticMsg);
-		SLOGD << "=== createSyntheticRegister injection result: " << (injectionResult ? "SUCCESS" : "FAILED") << " ===";
-		return injectionResult;
+		extendedContact->mUsedAsRoute = originalContact->mUsedAsRoute;
+		extendedContact->mKey = originalContact->mKey;
+		return extendedContact;
 
 	} catch (const std::exception& e) {
-		SLOGE << "Exception in createSyntheticRegister: " << e.what();
-		return false;
-	} catch (...) {
-		SLOGE << "Unknown exception in createSyntheticRegister";
-		return false;
-	}
-}
-
-bool Record::injectSyntheticRequest(std::shared_ptr<sofiasip::MsgSip> syntheticMsg) {
-	try {
-		SLOGD << "=== injectSyntheticRequest START ===";
-
-		// Get Agent through RegistrarDb
-		SLOGD << "Getting RegistrarDb instance...";
-		auto* registrarDb = RegistrarDb::get();
-		if (!registrarDb) {
-			SLOGE << "RegistrarDb not available for synthetic request injection";
-			return false;
-		}
-		SLOGD << "RegistrarDb obtained successfully";
-
-		SLOGD << "Getting Agent from RegistrarDb...";
-		auto* agent = registrarDb->getAgent();
-		if (!agent) {
-			SLOGE << "Agent not available for synthetic request injection";
-			return false;
-		}
-		SLOGD << "Agent obtained successfully";
-
-		// Create RequestSipEvent from synthetic message
-		// Agent inherits from IncomingAgent, so we can use agent directly
-		// For synthetic requests, we use nullptr for tport since it's internal
-		SLOGD << "Creating RequestSipEvent with agent as IncomingAgent...";
-		auto requestEvent = std::make_shared<RequestSipEvent>(agent->shared_from_this(), syntheticMsg, nullptr);
-		if (!requestEvent) {
-			SLOGE << "Failed to create RequestSipEvent from synthetic message";
-			return false;
-		}
-		SLOGD << "RequestSipEvent created successfully";
-
-		SLOGD << "Synthetic REGISTER ready for injection: " << *syntheticMsg;
-
-		// Use full module chain to ensure proper gateway propagation
-		SLOGD << "Sending synthetic REGISTER through full module chain for gateway propagation...";
-
-		// Use sendRequestEvent to process from the beginning of the module chain
-		// This ensures the synthetic REGISTER goes through SanityChecker, Authentication,
-		// GatewayAdapter, Registrar, Forward, etc. - just like a real network REGISTER
-		agent->sendRequestEvent(requestEvent);
-
-		SLOGD << "Successfully sent synthetic REGISTER through full module chain";
-		return true;
-
-	} catch (const std::exception& e) {
-		SLOGE << "Exception in injectSyntheticRequest: " << e.what();
-		return false;
-	} catch (...) {
-		SLOGE << "Unknown exception in injectSyntheticRequest";
-		return false;
+		SLOGE << "Error creating extended contact for " << originalContact->contactId() << ": " << e.what();
+		return nullptr;
 	}
 }
 
