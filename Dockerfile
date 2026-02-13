@@ -133,12 +133,6 @@ RUN apt-get update && apt-get install -y \
     libxml2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Firebase authentication dependencies for push notifications
-RUN pip3 install --no-cache-dir \
-    google-auth \
-    google-auth-httplib2 \
-    requests
-
 # Workaround for dynamic linker needing libiconv.so at runtime
 RUN ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libiconv.so && \
     ldconfig # Refresh linker cache

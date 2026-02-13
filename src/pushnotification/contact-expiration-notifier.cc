@@ -17,9 +17,14 @@
 */
 
 #include <ostream>
+#include <chrono>
 
 #include "contact-expiration-notifier.hh"
 
+#include "flexisip/logmanager.hh"
+#include "pushnotification/service.hh"
+#include "registrar/extended-contact.hh"
+#include "registrar/registrar-db.hh"
 #include "utils/transport/http/http-message.hh"
 
 using namespace std;
@@ -43,6 +48,11 @@ ostream& operator<<(ostream& stream, const DeviceInfo& devInfo) {
 	return stream << "device '" << contact.mKey.str() << "' of user '" << contact.urlAsString() << "'";
 }
 
+// Helper function to get current time
+time_t getCurrentTime() {
+	return std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+}
+
 } // namespace
 
 ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
@@ -58,15 +68,15 @@ ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
 }
 
 void ContactExpirationNotifier::onTimerElapsed() {
-	SLOGI << kLogPrefix << "Sending service push notifications to wake up mobile devices that have passed "
+	SLOGI << kLogPrefix << "Sending service push notifications for mobile devices that have passed "
 	      << mLifetimeThreshold << " of their expiration time...";
 
-	// Stage 4: Test call to extension logic
+	// Extend expiring registrations
 	try {
 		int extended = const_cast<RegistrarDb&>(mRegistrar).extendExpiringRegistrations();
-		SLOGD << kLogPrefix << "Extension test: found " << extended << " eligible registrations";
+		SLOGD << kLogPrefix << "Extended " << extended << " eligible registrations";
 	} catch (const std::exception& e) {
-		SLOGE << kLogPrefix << "Error in extension test: " << e.what();
+		SLOGE << kLogPrefix << "Error extending registrations: " << e.what();
 	}
 
 	mRegistrar.fetchExpiringContacts(
@@ -118,3 +128,4 @@ unique_ptr<ContactExpirationNotifier> ContactExpirationNotifier::make_unique(con
 }
 
 } // namespace flexisip
+
