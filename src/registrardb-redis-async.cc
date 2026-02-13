@@ -1154,98 +1154,146 @@ void RegistrarDbRedisAsync::doMigration() {
 	                    context);
 }
 
-int RegistrarDbRedisAsync::extendExpiringRegistrations() {
-	// Stage 6: Implement actual registration extension logic
-	SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations called";
+// Static callback for handling extension persistence completion.
+// Ownership of `context` is transferred here — always deleted.
+void RegistrarDbRedisAsync::sHandleExtensionPersist(redisAsyncContext*, redisReply* reply, RedisRegisterContext* context) {
+	if (!reply || reply->type == REDIS_REPLY_ERROR) {
+		SLOGE << "Extension persist failed for AOR " << context->mRecord->getKey()
+		      << ": " << (reply ? reply->str : "<null reply>");
+	}
+	delete context;
+}
 
+void RegistrarDbRedisAsync::persistExtendedRecord(RedisRegisterContext* context) {
+	serializeAndSendToRedis(context, sHandleExtensionPersist);
+}
+
+/**
+ * Listener that receives a fetched Record, extends its registrations, and
+ * persists the result back to Redis. Used by extendExpiringRegistrations().
+ *
+ * Memory safety: the RedisRegisterContext created in onRecordFound is owned
+ * by the Redis async callback (sHandleExtensionPersist) which deletes it.
+ */
+class ExtensionContactUpdateListener : public ContactUpdateListener {
+public:
+	ExtensionContactUpdateListener(RegistrarDbRedisAsync* db, const std::string& aor)
+	    : mDb(db), mAor(aor) {}
+
+	void onRecordFound(const std::shared_ptr<Record>& r) override {
+		if (!r) {
+			SLOGW << "Extension: Record not found for AOR " << mAor;
+			return;
+		}
+
+		try {
+			int extended = r->extendRegistrations();
+			if (extended <= 0) return;
+
+			// Copy contacts before async persistence to prevent use-after-free
+			std::vector<std::shared_ptr<ExtendedContact>> contactsCopy;
+			for (const auto& contact : r->getExtendedContacts()) {
+				if (contact) contactsCopy.push_back(contact);
+			}
+
+			auto* context = new RedisRegisterContext(mDb, SipUri("sip:" + mAor), nullptr);
+			context->mRecord = r;
+			for (const auto& contact : contactsCopy) {
+				context->mChangeSet.mUpsert.push_back(contact);
+			}
+
+			mDb->persistExtendedRecord(context);
+
+		} catch (const std::exception& e) {
+			SLOGE << "Extension error for AOR " << mAor << ": " << e.what();
+		}
+	}
+
+	void onError() override {
+		SLOGE << "Extension: failed to fetch Record for AOR " << mAor;
+	}
+
+	void onInvalid() override {
+		SLOGW << "Extension: invalid Record for AOR " << mAor;
+	}
+
+	void onContactUpdated(const std::shared_ptr<ExtendedContact>&) override {}
+
+private:
+	RegistrarDbRedisAsync* mDb;
+	std::string mAor;
+};
+
+/**
+ * Extend registrations for contacts nearing expiration in Redis.
+ *
+ * Uses a hardcoded threshold of 0.2 (20% of lifetime elapsed) to identify
+ * contacts that need extension. This is intentionally more aggressive than
+ * the configurable ContactExpirationNotifier threshold (default 50%) because
+ * the extension must happen BEFORE the push notification wakeup — the contact
+ * needs to still be valid when the push arrives and the device re-registers.
+ *
+ * Flow: fetchExpiringContacts (Lua script) → group by AOR → fetch full Record
+ * → Record::extendRegistrations() → persistExtendedRecord() back to Redis.
+ */
+int RegistrarDbRedisAsync::extendExpiringRegistrations() {
 	if (!isConnected()) {
-		SLOGE << "RegistrarDbRedisAsync::extendExpiringRegistrations - Not connected to Redis";
+		SLOGE << "Cannot extend registrations: not connected to Redis";
 		return 0;
 	}
 
-	SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Starting fetchExpiringContacts";
-
-	// Use a static/global counter to avoid the async reference issue
-	static std::atomic<int> globalExtensionCounter{0};
-	globalExtensionCounter = 0;
-
-	// Use fetchExpiringContacts to find candidates that are close to expiring
-	// We'll use a threshold of 0.2 (20% of expiration time) to match ContactExpirationNotifier
-	// This aligns with register-wakeup-threshold=20 configuration
-
 	fetchExpiringContacts(getCurrentTime(), 0.2f, [this](std::vector<ExtendedContact>&& contacts) {
 		try {
-			SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Found " << contacts.size() << " expiring contacts";
+			if (contacts.empty()) return;
 
-			if (contacts.empty()) {
-				SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - No expiring contacts found";
-				return;
-			}
+			SLOGI << "Found " << contacts.size() << " expiring contacts to extend";
 
-			// Group contacts by AOR to create Record objects
-			std::map<std::string, std::vector<std::unique_ptr<ExtendedContact>>> recordMap;
-
-			SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Grouping contacts by AOR";
+			// Group contacts by AOR extracted from pub-gruu
+			std::map<std::string, int> aorCounts;
 
 			for (auto& contact : contacts) {
 				try {
-					// Extract AOR from contact
-					std::string aor = contact.mSipContact ? contact.mSipContact->m_url->url_user : "";
-					if (!aor.empty() && contact.mSipContact->m_url->url_host) {
-						aor += "@";
-						aor += contact.mSipContact->m_url->url_host;
-
-						SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Processing contact for AOR: " << aor;
-
-						// Create a copy of the contact for the record
-						auto contactCopy = std::make_unique<ExtendedContact>(contact);
-						recordMap[aor].push_back(std::move(contactCopy));
-					} else {
-						SLOGW << "RegistrarDbRedisAsync::extendExpiringRegistrations - Skipping contact with invalid AOR";
+					const char* pub_gruu_value = msg_header_find_param((msg_common_t*)contact.mSipContact, "pub-gruu");
+					if (!pub_gruu_value || pub_gruu_value[0] == '\0') {
+						SLOGD << "Extension: contact has no pub-gruu, skipping";
+						continue;
 					}
+
+					std::string pub_gruu_str = StringUtils::unquote(pub_gruu_value);
+					sofiasip::Home home;
+					url_t* gruu_url = url_make(home.home(), pub_gruu_str.c_str());
+
+					if (!gruu_url || !gruu_url->url_user || !gruu_url->url_host) {
+						SLOGD << "Extension: invalid pub-gruu URI, skipping";
+						continue;
+					}
+
+					std::string aor = std::string(gruu_url->url_user) + "@" + std::string(gruu_url->url_host);
+					aorCounts[aor]++;
+
 				} catch (const std::exception& e) {
-					SLOGE << "RegistrarDbRedisAsync::extendExpiringRegistrations - Error processing contact: " << e.what();
+					SLOGE << "Extension: error processing contact: " << e.what();
 				}
 			}
 
-			SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Found " << recordMap.size() << " AORs to process";
+			SLOGI << "Extending registrations for " << aorCounts.size() << " AORs";
 
-			// Process each AOR's contacts
-			for (auto& [aor, contactList] : recordMap) {
+			// Fetch each full Record from Redis and extend it
+			for (auto& [aor, count] : aorCounts) {
 				try {
-					SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Processing AOR: " << aor << " with " << contactList.size() << " contacts";
-
-					// Create a temporary Record object for this AOR
-					auto record = std::make_shared<Record>(SipUri("sip:" + aor));
-
-					// Add contacts to the record
-					for (auto& contact : contactList) {
-						record->getExtendedContacts().emplace(std::move(contact));
-					}
-
-					// Call the extension logic we built in Stage 3
-					SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations - Calling extendRegistrations for AOR: " << aor;
-					int extended = record->extendRegistrations();
-					if (extended > 0) {
-						globalExtensionCounter += extended;
-						SLOGD << "Extended " << extended << " registrations for AOR " << aor;
-					} else {
-						SLOGD << "No registrations extended for AOR " << aor;
-					}
+					SipUri sipUri("sip:" + aor);
+					this->fetch(sipUri, std::make_shared<ExtensionContactUpdateListener>(this, aor), true);
 				} catch (const std::exception& e) {
-					SLOGE << "Error processing AOR " << aor << ": " << e.what();
+					SLOGE << "Extension: error fetching Record for AOR " << aor << ": " << e.what();
 				}
 			}
 
 		} catch (const std::exception& e) {
-			SLOGE << "RegistrarDbRedisAsync::extendExpiringRegistrations - Exception in callback: " << e.what();
+			SLOGE << "Extension: exception in callback: " << e.what();
 		}
 	});
 
-	// Return the current counter value (may be 0 if async hasn't completed yet)
-	int currentCount = globalExtensionCounter.load();
-	SLOGD << "RegistrarDbRedisAsync::extendExpiringRegistrations completed - " << currentCount << " total extensions (async)";
-	return currentCount;
+	return 0;
 }
 
 } // namespace flexisip

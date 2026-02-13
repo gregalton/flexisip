@@ -25,7 +25,6 @@
 #include "compat/hiredis/async.h"
 #include "compat/hiredis/hiredis.h"
 
-#include <sofia-sip/nta.h>
 #include <sofia-sip/sip.h>
 
 #include "flexisip/sofia-wrapper/su-root.hh"
@@ -198,6 +197,9 @@ public:
 	bool connect();
 	bool disconnect();
 
+	// Public method for persisting extended Records (used by ExtensionContactUpdateListener)
+	void persistExtendedRecord(RedisRegisterContext* context);
+
 protected:
 	void doBind(const MsgSip& msg,
 	            const BindingParameters& parameters,
@@ -267,6 +269,7 @@ private:
 	static void sHandleReplicationInfoReply(redisAsyncContext* ac, void* r, void* privdata);
 	static void sHandleMigration(redisAsyncContext* ac, redisReply* reply, RedisRegisterContext* data);
 	static void sHandleRecordMigration(redisAsyncContext* ac, redisReply* reply, RedisRegisterContext* data);
+	static void sHandleExtensionPersist(redisAsyncContext* ac, redisReply* reply, RedisRegisterContext* data);
 	static void sHandleSubcommandReply(redisAsyncContext*, redisReply* reply, std::string* cmd);
 
 	/**
