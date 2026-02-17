@@ -156,6 +156,10 @@ COPY --from=builder /usr/local/lib/libflexisip.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libsrtp2.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbzrtp.so* /usr/local/lib/
 COPY --from=builder /root/flexisip/build/bin/flexisip /opt/belledonne-communications/bin/
+
+# Copy belr grammar files (required at runtime for SDP and SIP message parsing)
+COPY --from=builder /usr/local/share/belr/grammars/ /usr/local/share/belr/grammars/
+
 RUN ldconfig # Refresh linker cache AFTER copying library
 
 # Copy files in order of dependency
