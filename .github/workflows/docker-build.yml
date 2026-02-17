@@ -3,9 +3,9 @@ name: Build Docker Image
 
 on:
   push:
-    branches: [ "sip-extender" ]
+    branches: [ "sip-extender", "flexisip-extended-registration-cleanup" ]
   pull_request:
-    branches: [ "sip-extender" ]
+    branches: [ "sip-extender", "flexisip-extended-registration-cleanup" ]
   workflow_dispatch:
 
 jobs:
