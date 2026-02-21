@@ -98,6 +98,18 @@ RUN mkdir -p /usr/local/share/belr/grammars && \
     cp /root/flexisip/share/authdb-file-grammar /usr/local/share/belr/grammars/authdb-file-grammar && \
     ls -la /usr/local/share/belr/grammars/
 
+# Ensure linphone resource files are installed (grouped build may skip install targets)
+RUN mkdir -p /usr/local/share/linphone && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/rootca.pem /usr/local/share/linphone/rootca.pem && \
+    mkdir -p /usr/local/share/sounds/linphone/rings && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/ringback.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/hello8000.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/hello16000.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/incoming_chat.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/toy-mono.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/rings/oldphone-mono.wav /usr/local/share/sounds/linphone/rings/ && \
+    ls -la /usr/local/share/linphone/ /usr/local/share/sounds/linphone/
+
 # Runtime stage
 FROM ubuntu:22.04
 
@@ -153,7 +165,7 @@ RUN ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libiconv.so 
     ldconfig # Refresh linker cache
 
 # Create necessary directories first
-RUN mkdir -p /var/log/flexisip /home/cores /etc/flexisip /opt/belledonne-communications/bin /opt/belledonne-communications/lib /var/opt/belledonne-communications/log/flexisip /usr/local/share/flexisip
+RUN mkdir -p /var/log/flexisip /home/cores /etc/flexisip /opt/belledonne-communications/bin /opt/belledonne-communications/lib /var/opt/belledonne-communications/log/flexisip /usr/local/share/flexisip /var/opt/belledonne-communications/flexisip/b2b
 
 # Copy built artifacts from builder stage
 COPY --from=builder /usr/local/lib/libortp.so* /usr/local/lib/
@@ -174,6 +186,10 @@ COPY --from=builder /root/flexisip/build/bin/flexisip /opt/belledonne-communicat
 
 # Copy belr grammar files (required at runtime for SDP and SIP message parsing)
 COPY --from=builder /usr/local/share/belr/grammars/ /usr/local/share/belr/grammars/
+
+# Copy linphone resource files (rootca.pem for TLS, sound files)
+COPY --from=builder /usr/local/share/linphone/ /usr/local/share/linphone/
+COPY --from=builder /usr/local/share/sounds/ /usr/local/share/sounds/
 
 RUN ldconfig # Refresh linker cache AFTER copying library
 
