@@ -89,6 +89,15 @@ RUN cd /root/flexisip && \
     echo "Contents of Linphone SDK directory:" && \
     ls -la /root/flexisip/linphone-sdk/
 
+# Ensure belr grammar files are installed (belle-sip cmake install target may not trigger in grouped build)
+RUN mkdir -p /usr/local/share/belr/grammars && \
+    cp /root/flexisip/linphone-sdk/belle-sip/src/sdp/sdp_grammar /usr/local/share/belr/grammars/sdp_grammar && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/cpim_grammar /usr/local/share/belr/grammars/cpim_grammar && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/ics_grammar /usr/local/share/belr/grammars/ics_grammar && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/identity_grammar /usr/local/share/belr/grammars/identity_grammar && \
+    cp /root/flexisip/share/authdb-file-grammar /usr/local/share/belr/grammars/authdb-file-grammar && \
+    ls -la /usr/local/share/belr/grammars/
+
 # Runtime stage
 FROM ubuntu:22.04
 
