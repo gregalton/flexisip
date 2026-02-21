@@ -33,6 +33,10 @@
 using namespace std;
 using namespace linphone;
 
+// Forward declaration — this internal liblinphone API disables ZRTP engine creation
+// to prevent heap corruption in B2BUA context where ZRTP is not meaningful.
+extern "C" void linphone_core_set_zrtp_not_available_simulation(LinphoneCore *lc, bool_t enabled);
+
 namespace flexisip {
 
 // b2bua namespace to declare internal structures
@@ -336,6 +340,7 @@ void B2buaServer::_init() {
 	// mCore->setZrtpSecretsFile("null");
 	mCore->setMediaEncryption(linphone::MediaEncryption::SRTP);
 	mCore->setMediaEncryptionMandatory(true);
+	linphone_core_set_zrtp_not_available_simulation(mCore->cPtr(), TRUE);
 	// Give enough time to the outgoing call (legB) to establish while we leave the incoming one (legA) ringing
 	// See RFC 3261 §16.6 step 11 for the duration
 	mCore->setIncTimeout(4 * 60);
