@@ -334,6 +334,8 @@ void B2buaServer::_init() {
 	mCore->enableAutoSendRinging(false); // Do not auto answer 180 on incoming calls, relay the one from the other part.
 	// ZRTP disabled — B2BUA is a B2B agent that breaks end-to-end; ZRTP serves no purpose and triggers heap corruption crash
 	// mCore->setZrtpSecretsFile("null");
+	mCore->setMediaEncryption(linphone::MediaEncryption::SRTP);
+	mCore->setMediaEncryptionMandatory(true);
 	// Give enough time to the outgoing call (legB) to establish while we leave the incoming one (legA) ringing
 	// See RFC 3261 §16.6 step 11 for the duration
 	mCore->setIncTimeout(4 * 60);
