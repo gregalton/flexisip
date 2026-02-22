@@ -236,6 +236,8 @@ AccountManager::onCallCreate(const linphone::Call& incomingCall, linphone::CallP
 	auto& extAccount = pair->second.get();
 	occupiedSlots[incomingCall.getCallLog()->getCallId()] = &extAccount;
 	extAccount.freeSlots--;
+	maybeSendWakePush(pair->second);
+	    maybeSendWakePush(pair->second);
 	const auto& linAccount = extAccount.account;
 	auto callee = requestAddress->clone();
 	callee->setDomain(linAccount->getParams()->getIdentityAddress()->getDomain());
@@ -307,6 +309,17 @@ string AccountManager::handleCommand(const string& command, const vector<string>
 				accountObj["registerEnabled"] = registerEnabled;
 				accountObj["freeSlots"] = bridge_account.freeSlots;
 			}
+			 
+			 void AccountManager::maybeSendWakePush(const std::shared_ptr<linphone::Account>& account) {
+			     if (!account->getParams()->registerEnabled() || account->getState() != linphone::RegistrationState::Ok) {
+			         SLOGD << "Sending wake push notification to " << account->getIdentityAddress()->asString();
+			         // TODO: integrate with actual push notification service
+			     }
+			 }
+			 
+			 void AccountManager::sendWakePushNotification(const std::shared_ptr<linphone::Account>& account) {
+			     maybeSendWakePush(account);
+			 }
 
 			accountsArr.append(accountObj);
 		}
