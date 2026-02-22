@@ -240,6 +240,7 @@ AccountManager::onCallCreate(const linphone::Call& incomingCall, linphone::CallP
 	auto callee = requestAddress->clone();
 	callee->setDomain(linAccount->getParams()->getIdentityAddress()->getDomain());
 	outgoingCallParams.setAccount(linAccount);
+	outgoingCallParams.setFromHeader(incomingCall.getRemoteAddress()->asString());
 	const auto& provider = pair->first.get();
 	if (const auto& mediaEncryption = provider.overrideEncryption) {
 		outgoingCallParams.setMediaEncryption(*mediaEncryption);
