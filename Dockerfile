@@ -64,6 +64,18 @@ ARG njobs=4
 # Copy the local repository
 COPY . /root/flexisip
 
+# Ensure linphone resource files are installed (grouped build may skip install targets)
+RUN mkdir -p /usr/local/share/linphone && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/rootca.pem /usr/local/share/linphone/rootca.pem && \
+    mkdir -p /usr/local/share/sounds/linphone/rings && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/ringback.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/hello8000.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/hello16000.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/incoming_chat.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/toy-mono.wav /usr/local/share/sounds/linphone/ && \
+    cp /root/flexisip/linphone-sdk/liblinphone/share/rings/oldphone-mono.wav /usr/local/share/sounds/linphone/rings/ && \
+    ls -la /usr/local/share/linphone/ /usr/local/share/sounds/linphone/
+
 # Build Flexisip following README instructions
 RUN cd /root/flexisip && \
     echo "Ensuring clean build directory..." && \
@@ -87,28 +99,13 @@ RUN cd /root/flexisip && \
     echo "Verifying library installation..." && \
     ls -la /usr/local/lib/libflexisip.so* || (echo "libflexisip.so not found in /usr/local/lib" && exit 1) && \
     echo "Contents of Linphone SDK directory:" && \
-    ls -la /root/flexisip/linphone-sdk/
+    ls -la /root/flexisip/linphone-sdk/ && \
+    echo "=== End of SDK listing ==="
 
 # Ensure belr grammar files are installed (belle-sip cmake install target may not trigger in grouped build)
 RUN mkdir -p /usr/local/share/belr/grammars && \
-    cp /root/flexisip/linphone-sdk/belle-sip/src/sdp/sdp_grammar /usr/local/share/belr/grammars/sdp_grammar && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/cpim_grammar /usr/local/share/belr/grammars/cpim_grammar && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/ics_grammar /usr/local/share/belr/grammars/ics_grammar && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/identity_grammar /usr/local/share/belr/grammars/identity_grammar && \
     cp /root/flexisip/share/authdb-file-grammar /usr/local/share/belr/grammars/authdb-file-grammar && \
     ls -la /usr/local/share/belr/grammars/
-
-# Ensure linphone resource files are installed (grouped build may skip install targets)
-RUN mkdir -p /usr/local/share/linphone && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/rootca.pem /usr/local/share/linphone/rootca.pem && \
-    mkdir -p /usr/local/share/sounds/linphone/rings && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/ringback.wav /usr/local/share/sounds/linphone/ && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/hello8000.wav /usr/local/share/sounds/linphone/ && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/hello16000.wav /usr/local/share/sounds/linphone/ && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/incoming_chat.wav /usr/local/share/sounds/linphone/ && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/toy-mono.wav /usr/local/share/sounds/linphone/ && \
-    cp /root/flexisip/linphone-sdk/liblinphone/share/rings/oldphone-mono.wav /usr/local/share/sounds/linphone/rings/ && \
-    ls -la /usr/local/share/linphone/ /usr/local/share/sounds/linphone/
 
 # Runtime stage
 FROM ubuntu:22.04
@@ -119,7 +116,6 @@ RUN apt-get update && apt-get install -y \
     libnghttp2-14 \
     libsrtp2-1 \
     libsqlite3-0 \
-    default-mysql-client \
     wget \
     libmbedtls-dev \
     libjemalloc2 \
@@ -181,7 +177,6 @@ COPY --from=builder /usr/local/lib/liblinphone.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/liblime.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libflexisip.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libsrtp2.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libbzrtp.so* /usr/local/lib/
 COPY --from=builder /root/flexisip/build/bin/flexisip /opt/belledonne-communications/bin/
 
 # Copy belr grammar files (required at runtime for SDP and SIP message parsing)
