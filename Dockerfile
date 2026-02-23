@@ -63,6 +63,8 @@ ARG njobs=4
 
 # Copy the local repository
 COPY . /root/flexisip
+# Initialize linphone-sdk submodule
+RUN cd /root/flexisip && git submodule update --init --recursive linphone-sdk
 
 # Ensure linphone resource files are installed (grouped build may skip install targets)
 RUN mkdir -p /usr/local/share/linphone && \
