@@ -3,9 +3,9 @@ name: Build Docker Image
 
 on:
   push:
-    branches: [ "sip-extender", "flexisip-extended-registration-cleanup" ]
+    branches: [ "sip-extender", "flexisip-extended-registration-cleanup", "stg2-regevent-fix-79bc7753" ]
   pull_request:
-    branches: [ "sip-extender", "flexisip-extended-registration-cleanup" ]
+    branches: [ "sip-extender", "flexisip-extended-registration-cleanup", "stg2-regevent-fix-79bc7753" ]
   workflow_dispatch:
 
 jobs:
@@ -42,5 +42,5 @@ jobs:
         file: Dockerfile
         platforms: linux/amd64
         push: true
-        tags: ghcr.io/${{ github.repository }}:latest
+        tags: ghcr.io/${{ github.repository }}:stg2-regevent-fix-79bc7753
         no-cache: true 
