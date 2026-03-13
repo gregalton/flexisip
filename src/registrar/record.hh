@@ -213,6 +213,9 @@ public:
 		return mOnlyStaticContacts;
 	}
 	bool isSame(const Record& other) const;
+	int extendRegistrations();
+	std::unique_ptr<ExtendedContact>
+	createExtendedContactForExtension(const std::shared_ptr<ExtendedContact>& originalContact, time_t extensionSeconds);
 
 	std::string extractUniqueId(const sip_contact_t* contact);
 

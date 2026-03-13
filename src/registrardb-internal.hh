@@ -39,6 +39,7 @@ public:
 	void fetchExpiringContacts(time_t startTimestamp,
 	                           float threshold,
 	                           std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override;
+	int extendExpiringRegistrations() override;
 
 	/**
 	 * Read-only access to the stored records. As of 2023-07-05, only used in tests

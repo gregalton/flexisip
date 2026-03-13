@@ -32,6 +32,7 @@
 #include "registrar/extended-contact.hh"
 #include "registrar/record.hh"
 #include "registrar/registrar-db.hh"
+#include "registrardb-internal.hh"
 #include "tester.hh"
 #include "utils/asserts.hh"
 #include "utils/override-static.hh"
@@ -157,6 +158,53 @@ class TestFetchExpiringContacts : public RegistrarDbTest<TDatabase> {
 
 		BC_ASSERT_TRUE(this->waitFor([&expiringContacts] { return !expiringContacts.empty(); }, 1s));
 		BC_ASSERT_CPP_EQUAL(expiringContacts.size(), 3);
+	}
+};
+
+class ExtendExpiringRegistrationsInInternalDb : public RegistrarDbTest<DbImplementation::Internal> {
+	void testExec() noexcept override {
+		auto& regDb = this->getRegistrarDb();
+		ContactInserter inserter(regDb);
+		inserter.withUniqueId(true);
+
+		inserter.setAor("sip:eligible@example.org")
+		    .setExpire(5s)
+		    .insert(ContactInsertArgs{"sip:eligible@127.0.0.1:3000;pn-provider=fake"});
+		inserter.setAor("sip:too-early@example.org")
+		    .setExpire(30s)
+		    .insert(ContactInsertArgs{"sip:too-early@127.0.0.1:3001;pn-provider=fake"});
+		inserter.setAor("sip:unnotifiable@example.org")
+		    .setExpire(5s)
+		    .insert(ContactInsertArgs{"sip:unnotifiable@127.0.0.1:3002"});
+
+		BC_ASSERT_TRUE(this->waitFor([&inserter] { return inserter.finished(); }, 1s));
+		this->waitFor(2s);
+
+		const auto& backend = dynamic_cast<const RegistrarDbInternal&>(regDb.getRegistrarBackend());
+		const auto eligibleKey = Record::Key(SipUri{"sip:eligible@example.org"}, regDb.useGlobalDomain()).toString();
+		const auto tooEarlyKey = Record::Key(SipUri{"sip:too-early@example.org"}, regDb.useGlobalDomain()).toString();
+		const auto unnotifiableKey =
+		    Record::Key(SipUri{"sip:unnotifiable@example.org"}, regDb.useGlobalDomain()).toString();
+
+		BC_ASSERT_CPP_EQUAL(backend.getAllRecords().at(eligibleKey)->getExtendedContacts().latest()->get()->getSipExpires().count(),
+		                    5);
+		BC_ASSERT_CPP_EQUAL(backend.getAllRecords().at(tooEarlyKey)->getExtendedContacts().latest()->get()->getSipExpires().count(),
+		                    30);
+		BC_ASSERT_CPP_EQUAL(
+		    backend.getAllRecords().at(unnotifiableKey)->getExtendedContacts().latest()->get()->getSipExpires().count(), 5);
+
+		BC_ASSERT_CPP_EQUAL(regDb.extendExpiringRegistrations(), 1);
+		BC_ASSERT_CPP_EQUAL(regDb.extendExpiringRegistrations(), 0);
+
+		const auto& eligible = *backend.getAllRecords().at(eligibleKey)->getExtendedContacts().latest();
+		BC_ASSERT_CPP_EQUAL(eligible->getSipExpires().count(), 3600);
+		BC_ASSERT_STRING_EQUAL(eligible->mSipContact->m_expires, "3600");
+		BC_ASSERT_TRUE(eligible->getSipExpireTime() > getCurrentTime() + 3500);
+
+		BC_ASSERT_CPP_EQUAL(backend.getAllRecords().at(tooEarlyKey)->getExtendedContacts().latest()->get()->getSipExpires().count(),
+		                    30);
+		BC_ASSERT_CPP_EQUAL(
+		    backend.getAllRecords().at(unnotifiableKey)->getExtendedContacts().latest()->get()->getSipExpires().count(), 5);
 	}
 };
 
@@ -776,6 +824,7 @@ TestSuite _(
         TEST_NO_TAG("Fetch expiring contacts on Redis", run<TestFetchExpiringContacts<DbImplementation::Redis>>),
         TEST_NO_TAG("Fetch expiring contacts in Internal DB",
                     run<TestFetchExpiringContacts<DbImplementation::Internal>>),
+	        TEST_NO_TAG("Extend expiring registrations in Internal DB", run<ExtendExpiringRegistrationsInInternalDb>),
         TEST_NO_TAG("An AOR cannot contain more than max-contacts-by-aor [Internal]",
                     run<InternalMaxContactsByAorIsHonored>),
         TEST_NO_TAG("An AOR cannot contain more than max-contacts-by-aor [Redis]", run<RedisMaxContactsByAorIsHonored>),

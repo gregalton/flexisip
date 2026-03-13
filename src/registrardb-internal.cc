@@ -143,6 +143,29 @@ void RegistrarDbInternal::fetchExpiringContacts(time_t current_time,
 	callback(std::move(expiringContacts));
 }
 
+int RegistrarDbInternal::extendExpiringRegistrations() {
+	int totalExtended = 0;
+
+	for (auto& [key, record] : mRecords) {
+		if (!record) continue;
+
+		try {
+			const auto extended = record->extendRegistrations();
+			if (extended <= 0) continue;
+
+			totalExtended += extended;
+			mLocalRegExpire.update(record);
+		} catch (const std::exception& e) {
+			SLOGE << "Error extending registrations for AOR " << key << ": " << e.what();
+		}
+	}
+
+	if (totalExtended > 0) {
+		SLOGI << "Extended " << totalExtended << " registrations across internal database";
+	}
+	return totalExtended;
+}
+
 void RegistrarDbInternal::doClear(const MsgSip& msg, const shared_ptr<ContactUpdateListener>& listener) {
 	auto* sip = msg.getSip();
 	const auto& key = Record::Key(sip->sip_from->a_url, mRecordConfig.useGlobalDomain()).toString();

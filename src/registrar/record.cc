@@ -421,6 +421,59 @@ bool Record::isSame(const Record& other) const {
 	return true;
 }
 
+int Record::extendRegistrations() {
+	static constexpr auto kExtensionThreshold = 0.2f;
+	static constexpr time_t kExtensionSeconds = 3600;
+
+	const auto currentTime = getCurrentTime();
+	list<shared_ptr<ExtendedContact>> contactsToExtend;
+
+	for (const auto& contact : mContacts) {
+		if (!contact || contact->isExpired() || !contact->mSipContact) continue;
+
+		const auto* url = contact->mSipContact->m_url;
+		if (!url || (!url_has_param(url, "pn-provider") && !url_has_param(url, "pn-type"))) continue;
+
+		const auto expires = contact->getSipExpires().count();
+		const auto thresholdTime = contact->getRegisterTime() + static_cast<time_t>(kExtensionThreshold * expires);
+		if (thresholdTime < currentTime && currentTime < contact->getSipExpireTime()) {
+			contactsToExtend.push_back(contact);
+		}
+	}
+
+	int extendedCount = 0;
+	for (const auto& contact : contactsToExtend) {
+		try {
+			auto extendedContact = createExtendedContactForExtension(contact, kExtensionSeconds);
+			if (!extendedContact) continue;
+
+			insertOrUpdateBinding(std::move(extendedContact), nullptr);
+			++extendedCount;
+		} catch (const std::exception& e) {
+			SLOGE << "Error extending contact " << contact->contactId() << ": " << e.what();
+		}
+	}
+
+	if (extendedCount > 0) {
+		SLOGI << "Extended " << extendedCount << " registrations for AOR " << mKey;
+	}
+	return extendedCount;
+}
+
+unique_ptr<ExtendedContact>
+Record::createExtendedContactForExtension(const shared_ptr<ExtendedContact>& originalContact, time_t extensionSeconds) {
+	if (!originalContact || !originalContact->mSipContact) {
+		return nullptr;
+	}
+
+	auto extendedContact = make_unique<ExtendedContact>(*originalContact);
+	extendedContact->mRegisterTime = getCurrentTime();
+	extendedContact->mExpires = chrono::seconds(extensionSeconds);
+	extendedContact->mSipContact->m_expires =
+	    extendedContact->mHome.sprintf("%lld", static_cast<long long>(extensionSeconds));
+	return extendedContact;
+}
+
 void Record::print(ostream& stream) const {
 	time_t now = getCurrentTime();
 	time_t offset = getTimeOffset(now);

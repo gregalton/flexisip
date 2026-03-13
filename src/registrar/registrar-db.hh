@@ -56,6 +56,9 @@ public:
 	virtual void fetchExpiringContacts(time_t startTimestamp,
 	                                   float threshold,
 	                                   std::function<void(std::vector<ExtendedContact>&&)>&& callback) const = 0;
+	virtual int extendExpiringRegistrations() {
+		return 0;
+	}
 	virtual bool isWritable() const = 0;
 	virtual void doBind(const sofiasip::MsgSip& sip,
 	                    const BindingParameters& parameters,
@@ -133,6 +136,9 @@ public:
 	                           float threshold,
 	                           std::function<void(std::vector<ExtendedContact>&&)>&& callback) const {
 		mBackend->fetchExpiringContacts(startTimestamp, threshold, std::move(callback));
+	}
+	int extendExpiringRegistrations() {
+		return mBackend->extendExpiringRegistrations();
 	}
 	void notifyContactListener(const std::shared_ptr<Record>& r /*might be empty record*/, const std::string& uid);
 	void updateRemoteExpireTime(const std::string& key, time_t expireat);
