@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <map>
 #include <cstdio>
 #include <ctime>
 #include <iterator>
@@ -580,6 +581,176 @@ void RegistrarDbRedisAsync::fetchExpiringContacts(
 
 		    SLOGE << "Fetch expiring contacts script returned unexpected reply: " << StreamableVariant(reply);
 	    });
+}
+
+/**
+ * Listener that receives a fetched Record, extends its registrations, and
+ * persists the result back to Redis. Used by extendExpiringRegistrations().
+ */
+class ExtensionContactUpdateListener : public ContactUpdateListener {
+public:
+	ExtensionContactUpdateListener(RegistrarDbRedisAsync* db, const std::string& aor) : mDb(db), mAor(aor) {
+	}
+
+	void onRecordFound(const std::shared_ptr<Record>& r) override {
+		if (!r) {
+			SLOGW << "Extension: Record not found for AOR " << mAor;
+			return;
+		}
+
+		try {
+			int extended = r->extendRegistrations();
+			if (extended <= 0) return;
+
+			SLOGI << "Extension: extended " << extended << " contacts for AOR " << mAor
+			      << ", persisting to Redis";
+
+			// Build a context with the updated contacts to persist
+			auto context =
+			    std::make_unique<RedisRegisterContext>(mDb, SipUri("sip:" + mAor), nullptr, mDb->mRecordConfig);
+			context->mRecord = r;
+			for (const auto& contact : r->getExtendedContacts()) {
+				if (contact) context->mChangeSet.mUpsert.push_back(contact);
+			}
+
+			// Persist to Redis
+			auto& ctxRef = *context;
+			mDb->serializeAndSendToRedis(ctxRef, [context = std::move(context)](Session&, Reply reply) {
+				if (const auto* err = std::get_if<reply::Error>(&reply)) {
+					SLOGE << "Extension persist failed for AOR " << context->mRecord->getKey() << ": " << *err;
+				}
+			});
+
+		} catch (const std::exception& e) {
+			SLOGE << "Extension error for AOR " << mAor << ": " << e.what();
+		}
+	}
+
+	void onError(const SipStatus&) override {
+		SLOGE << "Extension: failed to fetch Record for AOR " << mAor;
+	}
+
+	void onInvalid(const SipStatus&) override {
+		SLOGW << "Extension: invalid Record for AOR " << mAor;
+	}
+
+	void onContactUpdated(const std::shared_ptr<ExtendedContact>&) override {
+	}
+
+private:
+	RegistrarDbRedisAsync* mDb;
+	std::string mAor;
+};
+
+void RegistrarDbRedisAsync::handleExtensionFetch(Reply reply, const RedisRegisterContext& context) {
+	const auto& record = context.mRecord;
+	const auto recordName = record->getKey().toRedisKey() + " [ext]";
+
+	if (const auto* array = std::get_if<reply::Array>(&reply)) {
+		const auto contacts = array->pairwise();
+		SLOGD << "Extension: GOT " << recordName << " --> " << contacts.size() << " contacts";
+		if (contacts.size() > 0) {
+			for (auto&& maybeExpired : parseContacts(contacts, record->getConfig().messageExpiresName())) {
+				if (!maybeExpired->isExpired()) {
+					try {
+						record->insertOrUpdateBinding(std::move(maybeExpired), nullptr);
+					} catch (const InvalidCSeq&) {
+						// Ignore CSeq conflicts during extension
+					} catch (const std::exception& e) {
+						SLOGW << "Extension: error inserting contact: " << e.what();
+					}
+				}
+			}
+			if (context.listener) context.listener->onRecordFound(record);
+		}
+	} else {
+		SLOGE << "Unexpected Redis reply fetching " << recordName << " for extension: "
+		      << StreamableVariant(reply);
+		if (context.listener) context.listener->onError(SipStatus(SIP_500_INTERNAL_SERVER_ERROR));
+	}
+}
+
+int RegistrarDbRedisAsync::extendExpiringRegistrations() {
+	if (!isConnected()) {
+		SLOGE << "Cannot extend registrations: not connected to Redis";
+		return 0;
+	}
+
+	// Use fetchExpiringContacts with a 0.2 threshold to find contacts nearing expiration.
+	// The async callback will group them by AOR, fetch each full Record, extend it,
+	// and persist the result back to Redis.
+	fetchExpiringContacts(getCurrentTime(), 0.2f, [this](std::vector<ExtendedContact>&& contacts) {
+		try {
+			if (contacts.empty()) return;
+
+			SLOGI << "Found " << contacts.size() << " expiring contacts to extend";
+
+			// Group contacts by AOR extracted from pub-gruu
+			std::map<std::string, int> aorCounts;
+
+			for (auto& contact : contacts) {
+				try {
+					const char* pub_gruu_value =
+					    msg_header_find_param((msg_common_t*)contact.mSipContact, "pub-gruu");
+					if (!pub_gruu_value || pub_gruu_value[0] == '\0') {
+						SLOGD << "Extension: contact has no pub-gruu, skipping";
+						continue;
+					}
+
+					std::string pub_gruu_str = StringUtils::unquote(pub_gruu_value);
+					sofiasip::Home home;
+					url_t* gruu_url = url_make(home.home(), pub_gruu_str.c_str());
+
+					if (!gruu_url || !gruu_url->url_user || !gruu_url->url_host) {
+						SLOGD << "Extension: invalid pub-gruu URI, skipping";
+						continue;
+					}
+
+					std::string aor =
+					    std::string(gruu_url->url_user) + "@" + std::string(gruu_url->url_host);
+					aorCounts[aor]++;
+
+				} catch (const std::exception& e) {
+					SLOGE << "Extension: error processing contact: " << e.what();
+				}
+			}
+
+			SLOGI << "Extending registrations for " << aorCounts.size() << " AORs";
+
+			// For each AOR, fetch the full Record, extend it, and persist back to Redis
+			for (auto& [aor, count] : aorCounts) {
+				try {
+					SipUri sipUri("sip:" + aor);
+
+					// Create a listener that will extend the record and persist it
+					auto listener = std::make_shared<ExtensionContactUpdateListener>(this, aor);
+					const Session::Ready* cmdSession;
+					if (!(cmdSession = mRedisClient.tryGetCmdSession())) {
+						SLOGE << "Extension: Redis session not ready for AOR " << aor;
+						continue;
+					}
+
+					auto context =
+					    std::make_unique<RedisRegisterContext>(this, sipUri, listener, mRecordConfig);
+					const auto& key = context->mRecord->getKey();
+					SLOGD << "Extension: Fetching fs:" << key << " for AOR " << aor;
+					cmdSession->timedCommand(
+					    {"HGETALL", key.toRedisKey()},
+					    [context = std::move(context), this](Session&, Reply reply) {
+						    handleExtensionFetch(reply, *context);
+					    });
+
+				} catch (const std::exception& e) {
+					SLOGE << "Extension: error fetching Record for AOR " << aor << ": " << e.what();
+				}
+			}
+
+		} catch (const std::exception& e) {
+			SLOGE << "Extension: exception in callback: " << e.what();
+		}
+	});
+
+	return 0; // Actual count is not available synchronously due to async Redis operations
 }
 
 void RegistrarDbRedisAsync::forceDisconnectForTest(RegistrarDbRedisAsync& thiz) {

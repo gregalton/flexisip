@@ -106,6 +106,8 @@ public:
 	                           float threshold,
 	                           std::function<void(std::vector<ExtendedContact>&&)>&& callback) const override;
 
+	int extendExpiringRegistrations() override;
+
 	std::optional<std::tuple<const redis::async::Session::Ready&, const redis::async::SubscriptionSession::Ready&>>
 	connect();
 	bool isConnected() const;
@@ -134,6 +136,8 @@ public:
 	void unsubscribe(const Record::Key& topic) override;
 	void publish(const Record::Key& topic, const std::string& uid) override;
 
+	friend class ExtensionContactUpdateListener;
+
 private:
 	static void sBindRetry(void* ud) noexcept;
 	void setWritable(bool value);
@@ -148,6 +152,7 @@ private:
 	void handleBind(redis::async::Reply, std::unique_ptr<RedisRegisterContext>&&);
 	void handleClear(redis::async::Reply, const RedisRegisterContext&);
 	void handleFetch(redis::async::Reply, const RedisRegisterContext&);
+	void handleExtensionFetch(redis::async::Reply, const RedisRegisterContext&);
 	void handlePublish(std::string_view, redis::async::Reply);
 
 	/* redis::async::SessionListener */

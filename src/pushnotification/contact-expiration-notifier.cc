@@ -21,6 +21,7 @@
 #include "contact-expiration-notifier.hh"
 #include "push-notification-exceptions.hh"
 
+#include "registrar/registrar-db.hh"
 #include "utils/transport/http/http-message.hh"
 
 using namespace std;
@@ -61,6 +62,15 @@ ContactExpirationNotifier::ContactExpirationNotifier(chrono::seconds interval,
 void ContactExpirationNotifier::onTimerElapsed() {
 	SLOGI << kLogPrefix << "Sending service push notifications to wake up mobile devices that have passed "
 	      << mLifetimeThreshold << " of their expiration time...";
+
+	// Extend expiring registrations
+	try {
+		int extended = const_cast<RegistrarDb&>(mRegistrar).extendExpiringRegistrations();
+		SLOGD << kLogPrefix << "Extended " << extended << " eligible registrations";
+	} catch (const std::exception& e) {
+		SLOGE << kLogPrefix << "Error extending registrations: " << e.what();
+	}
+
 	mRegistrar.fetchExpiringContacts(
 	    getCurrentTime(), mLifetimeThreshold, [weakPNService = mPNService](auto&& contacts) mutable {
 		    static constexpr const auto pushType = pn::PushType::Background;
