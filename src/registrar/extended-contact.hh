@@ -208,6 +208,8 @@ struct ExtendedContact {
 	url_t* toSofiaUrlClean(su_home_t* home);
 	bool isSame(const ExtendedContact& otherContact) const;
 
+	friend class Record;
+
 private:
 	time_t mRegisterTime{0};
 	std::string mMessageExpiresName;
