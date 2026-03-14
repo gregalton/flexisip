@@ -51,9 +51,6 @@ struct ExtendedContactCommon {
 };
 
 struct ExtendedContact {
-	class Record;
-	friend class Record;
-
 	std::string mCallId{};
 	ContactKey mKey{}; // If the contact contains an identifier listed in Record::sLineFieldNames, then it is used as
 	                   // key, otherwise a random string
