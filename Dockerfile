@@ -129,7 +129,15 @@ RUN apt-get update && apt-get install -y \
     libopus0 \
     libgsm1 \
     libxml2 \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Firebase authentication dependencies for push notifications
+RUN pip3 install --no-cache-dir \
+    google-auth \
+    google-auth-httplib2 \
+    requests
 
 # Workaround for dynamic linker needing libiconv.so at runtime
 RUN ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libiconv.so && \
@@ -154,6 +162,7 @@ COPY --from=builder /usr/local/lib/libflexisip.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libsrtp2.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbzrtp.so* /usr/local/lib/
 COPY --from=builder /root/flexisip/build/bin/flexisip /opt/belledonne-communications/bin/
+COPY --from=builder /usr/local/share/belr/grammars/ /usr/local/share/belr/grammars/
 RUN ldconfig # Refresh linker cache AFTER copying library
 
 # Copy files in order of dependency
