@@ -302,6 +302,14 @@ ModuleInfo<PushNotification> PushNotification::sInfo{
 	            "lifetime. The value MUST be in [0;100]",
 	            "50",
 	        },
+	        {
+	            Boolean,
+	            "register-wakeup-token-refresh",
+	            "Enable push token refresh for contacts with extended registrations. "
+	            "When enabled, push tokens are periodically validated during registration extensions "
+	            "to ensure devices remain reachable for inbound calls and messages.",
+	            "true",
+	        },
 
 	        // deprecated parameters
 	        {

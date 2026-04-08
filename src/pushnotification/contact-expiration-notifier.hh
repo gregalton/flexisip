@@ -19,6 +19,7 @@
 #pragma once
 
 #include <exception>
+#include <optional>
 
 #include <bctoolbox/logging.h>
 
@@ -33,6 +34,7 @@ namespace flexisip {
 
 /**
  * Send wake up push notifications to devices that are nearing their expiration time to let them register again.
+ * Also handles push token refresh for extended registrations to maintain valid tokens.
  */
 class ContactExpirationNotifier {
 public:
@@ -40,7 +42,8 @@ public:
 	                          float lifetimeThreshold,
 	                          const std::shared_ptr<sofiasip::SuRoot>&,
 	                          std::weak_ptr<pushnotification::Service>&&,
-	                          const RegistrarDb&);
+	                          const RegistrarDb&,
+	                          bool enableTokenRefresh = true);
 
 	void onTimerElapsed();
 
@@ -49,11 +52,56 @@ public:
 	                                                              std::weak_ptr<pushnotification::Service>&&,
 	                                                              const RegistrarDb&);
 
+	/**
+	 * Refresh push tokens for contacts that are about to expire or have been extended.
+	 * This ensures extended registrations maintain valid push tokens,
+	 * especially important for Android FCM tokens.
+	 */
+	void refreshPushTokensForExpiringContacts();
+
 private:
 	const float mLifetimeThreshold; // Notify devices that have passed that proportion of their time to live
 	sofiasip::Timer mTimer;
 	std::weak_ptr<pushnotification::Service> mPNService;
 	const RegistrarDb& mRegistrar;
+	const bool mEnableTokenRefresh; // Whether to perform push token refresh
+
+	// Push token refresh functionality
+	struct PushTokenInfo {
+		std::string provider;    // "fcm", "apns", "apns.dev"
+		std::string prid;        // Push registration ID (token)
+		std::string param;       // Push parameters
+		std::string teamId;      // iOS team ID
+		std::string bundleId;    // App bundle identifier
+		time_t lastRefresh;      // Last token refresh time
+	};
+
+	/**
+	 * Extract push notification parameters from a contact URI.
+	 */
+	std::optional<PushTokenInfo> extractPushTokenInfo(const ExtendedContact& contact);
+
+	/**
+	 * Refresh push tokens for a specific contact.
+	 */
+	std::optional<PushTokenInfo> refreshTokenForContact(const ExtendedContact& contact, const PushTokenInfo& tokenInfo);
+
+	/**
+	 * Update contact with refreshed push token parameters.
+	 */
+	std::shared_ptr<ExtendedContact> updateContactWithRefreshedTokens(const std::shared_ptr<ExtendedContact>& contact,
+	                                                                   const PushTokenInfo& newTokenInfo);
+
+	/**
+	 * Platform-specific token refresh logic.
+	 */
+	std::optional<PushTokenInfo> refreshAndroidToken(const PushTokenInfo& tokenInfo);
+	std::optional<PushTokenInfo> refreshiOSToken(const PushTokenInfo& tokenInfo);
+
+	/**
+	 * Check if a token needs refreshing based on platform-specific criteria.
+	 */
+	bool shouldRefreshToken(const PushTokenInfo& tokenInfo, const ExtendedContact& contact);
 };
 
 } // namespace flexisip
