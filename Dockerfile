@@ -149,6 +149,7 @@ RUN mkdir -p /var/log/flexisip /home/cores /etc/flexisip /opt/belledonne-communi
 # Copy built artifacts from builder stage
 COPY --from=builder /usr/local/lib/libortp.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmediastreamer.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libmediastreamer2.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmediastreamer_base.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libmediastreamer_voip.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libbctoolbox.so* /usr/local/lib/
