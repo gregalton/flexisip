@@ -146,22 +146,8 @@ RUN ln -s /lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libiconv.so 
 # Create necessary directories first
 RUN mkdir -p /var/log/flexisip /home/cores /etc/flexisip /opt/belledonne-communications/bin /opt/belledonne-communications/lib /var/opt/belledonne-communications/log/flexisip /usr/local/share/flexisip
 
-# Copy built artifacts from builder stage
-COPY --from=builder /usr/local/lib/libortp.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libmediastreamer.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libmediastreamer2.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libmediastreamer_base.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libmediastreamer_voip.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libbctoolbox.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libbelr.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libsofia-sip-ua.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libbellesip.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/liblinphone++.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/liblinphone.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/liblime.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libflexisip.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libsrtp2.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libbzrtp.so* /usr/local/lib/
+# Copy all shared libraries from builder stage
+COPY --from=builder /usr/local/lib/*.so* /usr/local/lib/
 COPY --from=builder /root/flexisip/build/bin/flexisip /opt/belledonne-communications/bin/
 COPY --from=builder /usr/local/share/belr/grammars/ /usr/local/share/belr/grammars/
 RUN ldconfig # Refresh linker cache AFTER copying library
