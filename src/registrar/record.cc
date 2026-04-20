@@ -210,6 +210,19 @@ ChangeSet Record::insertOrUpdateBinding(unique_ptr<ExtendedContact>&& ec, Contac
 }
 
 Record::ContactMatch Record::matchContacts(const ExtendedContact& existing, const ExtendedContact& neo) {
+	// First check: same device ID (contact URI user part). If the same device registers again — regardless of
+	// whether the +sip.instance UUID or push token changed (e.g. after app reinstall or re-login) — the old
+	// contact must be removed. There should never be multiple contacts for the same device.
+	if (existing.mSipContact && neo.mSipContact && existing.mSipContact->m_url && neo.mSipContact->m_url) {
+		const char* existingUser = existing.mSipContact->m_url->url_user;
+		const char* neoUser = neo.mSipContact->m_url->url_user;
+		if (existingUser && neoUser && ::strcmp(existingUser, neoUser) == 0) {
+			SLOGD << "Removing contact [" << existing.contactId() << "] with same device ID '" << existingUser
+			      << "' as new contact [" << neo.contactId() << "]";
+			return ContactMatch::ForceErase;
+		}
+	}
+
 	if (existing.mPushParamList == neo.mPushParamList) {
 		if (existing.getRegisterTime() <= neo.getRegisterTime()) {
 			SLOGD << "Removing contact [" << existing.contactId() << "] with identical push params : new["
