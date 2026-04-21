@@ -16,7 +16,38 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: false
+
+    - name: Initialize submodules (skip gitlab.linphone.org)
+      run: |
+        # Init top-level submodules
+        git submodule init
+
+        # Override linphone-sdk URL to use GitHub mirror (gitlab.linphone.org is unreliable)
+        git config submodule.linphone-sdk.url https://github.com/BelledonneCommunications/linphone-sdk.git
+        git config submodule.submodules/externals/sofia-sip.url https://github.com/BelledonneCommunications/sofia-sip.git
+
+        # Update top-level submodules
+        git submodule update
+
+        # Init linphone-sdk nested submodules, overriding gitlab.linphone.org URLs
+        cd linphone-sdk
+        git submodule init
+
+        # Override all nested submodules to use GitHub mirrors where available
+        for sub in $(git config --file .gitmodules --get-regexp 'submodule\..*\.url' | grep 'gitlab.linphone.org/BC/public' | sed 's/submodule\.\(.*\)\.url .*/\1/'); do
+          repo_name=$(git config --file .gitmodules "submodule.${sub}.url" | sed 's|.*/||' | sed 's|\.git$||')
+          github_url="https://github.com/BelledonneCommunications/${repo_name}.git"
+          # Check if GitHub mirror exists, fall back to original if not
+          if git ls-remote --exit-code "$github_url" HEAD >/dev/null 2>&1; then
+            echo "Redirecting ${sub} -> ${github_url}"
+            git config "submodule.${sub}.url" "$github_url"
+          else
+            echo "No GitHub mirror for ${sub}, keeping original"
+          fi
+        done
+
+        git submodule update --recursive
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
