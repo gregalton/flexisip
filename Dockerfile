@@ -66,7 +66,6 @@ ARG njobs=4
 COPY . /root/flexisip
 
 # Build Flexisip following README instructions
-SHELL ["/bin/bash", "-c"]
 RUN cd /root/flexisip && \
     rm -rf ./build && mkdir -p ./build && \
     cmake -S . -B ./build \
@@ -75,13 +74,14 @@ RUN cd /root/flexisip && \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk \
-          2>&1 | tee /tmp/cmake-output.log ; \
-    rc=${PIPESTATUS[0]} ; \
+          > /tmp/cmake-output.log 2>&1 ; \
+    rc=$? ; \
     if [ $rc -ne 0 ]; then \
-      echo "=== CMAKE FAILED (exit $rc) - last 200 lines ===" ; \
-      tail -200 /tmp/cmake-output.log ; \
+      echo "CMAKE_CONFIGURE_FAILED" ; \
+      grep -i "error\|fatal\|not found\|missing\|failed\|could not" /tmp/cmake-output.log | grep -v "^--" | tail -30 ; \
       exit 1 ; \
-    fi
+    fi ; \
+    echo "CMAKE_CONFIGURE_OK"
 
 RUN cd /root/flexisip && \
     make -C ./build -j${njobs}
