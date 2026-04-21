@@ -74,8 +74,7 @@ RUN cd /root/flexisip && \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk \
-    || (echo "=== CMakeError.log ===" && cat ./build/CMakeFiles/CMakeError.log && \
-        echo "=== CMakeOutput.log (last 100 lines) ===" && tail -100 ./build/CMakeFiles/CMakeOutput.log && exit 1)
+    || (echo "=== CMakeError.log (last 200 lines) ===" && tail -200 ./build/CMakeFiles/CMakeError.log && exit 1)
 
 RUN cd /root/flexisip && \
     make -C ./build -j${njobs}
