@@ -56,7 +56,7 @@ jobs:
           fi
         done
 
-        git submodule update
+        git submodule update --recursive
         cd ..
 
         # 2. sofia-sip — GitHub mirror doesn't have the exact pinned commit (9a81ffa2),
