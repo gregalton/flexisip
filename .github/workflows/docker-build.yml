@@ -31,19 +31,32 @@ jobs:
         cd linphone-sdk
         git checkout 37945e7e7b5b1074a3a0c97b89d3cd806850f18e
 
-        # Init linphone-sdk nested submodules, redirecting gitlab URLs to GitHub mirrors
-        git submodule init
-        for sub in $(git config --file .gitmodules --get-regexp 'submodule\..*\.url' | grep 'gitlab.linphone.org/BC/public' | sed 's/submodule\.\(.*\)\.url .*/\1/'); do
-          repo_name=$(git config --file .gitmodules "submodule.${sub}.url" | sed 's|.*/||' | sed 's|\.git$||')
+        # Only init submodules Flexisip actually needs (per LinphoneSDK.cmake).
+        # Video/audio codecs (aom, libvpx, ffmpeg, etc.) and platform plugins
+        # (msoboe, msandroidcamera2, etc.) are disabled — skip them entirely.
+        REQUIRED_SUBS=(
+          belle-sip bctoolbox belr ortp liblinphone lime bzrtp
+          mediastreamer2 cmake-builder bcunit
+          external/mbedtls external/decaf external/srtp external/soci
+        )
+
+        git submodule init -- "${REQUIRED_SUBS[@]}"
+
+        # Redirect initialized submodules from gitlab to GitHub mirrors
+        for sub in "${REQUIRED_SUBS[@]}"; do
+          orig_url=$(git config --file .gitmodules "submodule.${sub}.url" 2>/dev/null || true)
+          if [ -z "$orig_url" ]; then continue; fi
+          repo_name=$(echo "$orig_url" | sed 's|.*/||' | sed 's|\.git$||')
           github_url="https://github.com/BelledonneCommunications/${repo_name}.git"
           if git ls-remote --exit-code "$github_url" HEAD >/dev/null 2>&1; then
             echo "Redirecting ${sub} -> ${github_url}"
             git config "submodule.${sub}.url" "$github_url"
           else
-            echo "WARNING: No GitHub mirror for ${sub}, trying original"
+            echo "WARNING: No GitHub mirror for ${sub}, keeping original"
           fi
         done
-        git submodule update --recursive
+
+        git submodule update
         cd ..
 
         # 2. sofia-sip — GitHub mirror doesn't have the exact pinned commit (9a81ffa2),
