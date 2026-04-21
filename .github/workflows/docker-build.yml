@@ -36,7 +36,7 @@ jobs:
         # (msoboe, msandroidcamera2, etc.) are disabled — skip them entirely.
         REQUIRED_SUBS=(
           belle-sip bctoolbox belr ortp liblinphone lime bzrtp
-          mediastreamer2 cmake-builder bcunit
+          mediastreamer2 bcunit belcard
           external/mbedtls external/decaf external/srtp external/soci
         )
 
