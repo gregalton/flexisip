@@ -18,36 +18,37 @@ jobs:
       with:
         submodules: false
 
-    - name: Initialize submodules (skip gitlab.linphone.org)
+    - name: Clone required submodules from GitHub mirrors
       run: |
-        # Init top-level submodules
-        git submodule init
+        # gitlab.linphone.org is unreliable from GitHub Actions runners.
+        # Only two submodules are required for the build:
+        #   - linphone-sdk (cmake LINPHONESDK_DIR)
+        #   - sofia-sip (always built from submodule via ExternalDependencies.cmake)
+        # The others (hiredis, jansson, jose) use system packages or disabled features.
 
-        # Override linphone-sdk URL to use GitHub mirror (gitlab.linphone.org is unreliable)
-        git config submodule.linphone-sdk.url https://github.com/BelledonneCommunications/linphone-sdk.git
-        git config submodule.submodules/externals/sofia-sip.url https://github.com/BelledonneCommunications/sofia-sip.git
-
-        # Update top-level submodules
-        git submodule update
-
-        # Init linphone-sdk nested submodules, overriding gitlab.linphone.org URLs
+        # 1. linphone-sdk — clone from GitHub mirror, checkout pinned commit
+        git clone https://github.com/BelledonneCommunications/linphone-sdk.git linphone-sdk
         cd linphone-sdk
-        git submodule init
+        git checkout 37945e7e7b5b1074a3a0c97b89d3cd806850f18e
 
-        # Override all nested submodules to use GitHub mirrors where available
+        # Init linphone-sdk nested submodules, redirecting gitlab URLs to GitHub mirrors
+        git submodule init
         for sub in $(git config --file .gitmodules --get-regexp 'submodule\..*\.url' | grep 'gitlab.linphone.org/BC/public' | sed 's/submodule\.\(.*\)\.url .*/\1/'); do
           repo_name=$(git config --file .gitmodules "submodule.${sub}.url" | sed 's|.*/||' | sed 's|\.git$||')
           github_url="https://github.com/BelledonneCommunications/${repo_name}.git"
-          # Check if GitHub mirror exists, fall back to original if not
           if git ls-remote --exit-code "$github_url" HEAD >/dev/null 2>&1; then
             echo "Redirecting ${sub} -> ${github_url}"
             git config "submodule.${sub}.url" "$github_url"
           else
-            echo "No GitHub mirror for ${sub}, keeping original"
+            echo "WARNING: No GitHub mirror for ${sub}, trying original"
           fi
         done
-
         git submodule update --recursive
+        cd ..
+
+        # 2. sofia-sip — GitHub mirror doesn't have the exact pinned commit (9a81ffa2),
+        #    so use the bc branch HEAD which is Belledonne's maintained branch.
+        git clone --branch bc https://github.com/BelledonneCommunications/sofia-sip.git submodules/externals/sofia-sip
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
