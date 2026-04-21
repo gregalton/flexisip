@@ -67,30 +67,24 @@ COPY . /root/flexisip
 
 # Build Flexisip following README instructions
 RUN cd /root/flexisip && \
-    echo "Ensuring clean build directory..." && \
-    rm -rf ./build && \
-    mkdir -p ./build && \
-    echo "Running cmake..." && \
+    rm -rf ./build && mkdir -p ./build && \
     cmake -S . -B ./build \
           -DCMAKE_INSTALL_LIBDIR=lib \
           -DINTERNAL_MBEDTLS=OFF \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
-          -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk && \
-    echo "Running make..." && \
-    make -C ./build -j${njobs} && \
-    echo "Verifying build output..." && \
-    echo "Contents of build directory:" && \
-    ls -la ./build/ && \
-    echo "Contents of build/bin directory:" && \
-    ls -la ./build/bin/ && \
-    [ -f ./build/bin/flexisip ] || (echo "flexisip binary not found" && exit 1) && \
-    echo "Installing files..." && \
+          -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk \
+    || (echo "=== CMakeError.log ===" && cat ./build/CMakeFiles/CMakeError.log && \
+        echo "=== CMakeOutput.log (last 100 lines) ===" && tail -100 ./build/CMakeFiles/CMakeOutput.log && exit 1)
+
+RUN cd /root/flexisip && \
+    make -C ./build -j${njobs}
+
+RUN cd /root/flexisip && \
     make -C ./build install && \
-    echo "Verifying library installation..." && \
-    ls -la /usr/local/lib/libflexisip.so* || (echo "libflexisip.so not found in /usr/local/lib" && exit 1) && \
-    echo "Contents of Linphone SDK directory:" && \
-    ls -la /root/flexisip/linphone-sdk/
+    echo "=== Installed libraries ===" && \
+    find /usr/local/lib -name "*.so*" | head -50 && \
+    ls -la /usr/local/lib/libflexisip.so* || echo "libflexisip.so not in /usr/local/lib (check find output above)"
 
 # Runtime stage
 FROM ubuntu:22.04
