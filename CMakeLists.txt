@@ -173,7 +173,9 @@ endfunction()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(INTERNAL_MBEDTLS ON)
+if(NOT DEFINED INTERNAL_MBEDTLS)
+	set(INTERNAL_MBEDTLS ON)
+endif()
 include("cmake/ExternalDependencies.cmake")
 include("cmake/LinphoneSDK.cmake")
 
@@ -248,7 +250,13 @@ include_directories(
 	"${CMAKE_CURRENT_BINARY_DIR}"
 	"${CMAKE_CURRENT_BINARY_DIR}/include"
 	"${CMAKE_CURRENT_BINARY_DIR}/src"
+	"${CMAKE_CURRENT_BINARY_DIR}/linphone-sdk/desktop/include"
+	"${CMAKE_CURRENT_SOURCE_DIR}/linphone-sdk/external/soci/include"
+	"${CMAKE_CURRENT_SOURCE_DIR}/linphone-sdk/bctoolbox/include"
 )
+
+# Add SDK library path for linking
+link_directories("${CMAKE_CURRENT_BINARY_DIR}/linphone-sdk/desktop/lib")
 
 set(BELR_GRAMMARS_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/belr/grammars")
 
