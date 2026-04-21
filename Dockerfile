@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y \
     libsnmp-dev \
     libxerces-c-dev \
     libjsoncpp-dev \
+    libmbedtls-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional dependencies
@@ -72,6 +73,7 @@ RUN cd /root/flexisip && \
     echo "Running cmake..." && \
     cmake -S . -B ./build \
           -DCMAKE_INSTALL_LIBDIR=lib \
+          -DINTERNAL_MBEDTLS=OFF \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk && \

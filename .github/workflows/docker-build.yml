@@ -37,7 +37,7 @@ jobs:
         REQUIRED_SUBS=(
           belle-sip bctoolbox belr ortp liblinphone lime bzrtp
           mediastreamer2 bcunit belcard
-          external/mbedtls external/decaf external/srtp external/soci
+          external/decaf external/srtp external/soci
         )
 
         git submodule init -- "${REQUIRED_SUBS[@]}"
