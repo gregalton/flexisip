@@ -66,6 +66,7 @@ ARG njobs=4
 COPY . /root/flexisip
 
 # Build Flexisip following README instructions
+SHELL ["/bin/bash", "-c"]
 RUN cd /root/flexisip && \
     rm -rf ./build && mkdir -p ./build && \
     cmake -S . -B ./build \
@@ -75,8 +76,12 @@ RUN cd /root/flexisip && \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk \
           2>&1 | tee /tmp/cmake-output.log ; \
-    test ${PIPESTATUS[0]} -eq 0 \
-    || (echo "=== CMAKE FAILED - last 200 lines ===" && tail -200 /tmp/cmake-output.log && exit 1)
+    rc=${PIPESTATUS[0]} ; \
+    if [ $rc -ne 0 ]; then \
+      echo "=== CMAKE FAILED (exit $rc) - last 200 lines ===" ; \
+      tail -200 /tmp/cmake-output.log ; \
+      exit 1 ; \
+    fi
 
 RUN cd /root/flexisip && \
     make -C ./build -j${njobs}
