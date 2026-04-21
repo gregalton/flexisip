@@ -71,6 +71,7 @@ RUN cd /root/flexisip && \
     mkdir -p ./build && \
     echo "Running cmake..." && \
     cmake -S . -B ./build \
+          -DCMAKE_INSTALL_LIBDIR=lib \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk && \
