@@ -71,6 +71,7 @@ RUN cd /root/flexisip && \
     cmake -S . -B ./build \
           -DCMAKE_INSTALL_LIBDIR=lib \
           -DINTERNAL_MBEDTLS=OFF \
+          -DENABLE_JWE_AUTH_PLUGIN=OFF \
           -DFLEXISIP_VERSION=${FLEXISIP_VERSION} \
           -DLINPHONESDK_VERSION=${LINPHONESDK_VERSION} \
           -DLINPHONESDK_DIR=/root/flexisip/linphone-sdk \
