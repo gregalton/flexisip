@@ -3,9 +3,9 @@ name: Build Docker Image
 
 on:
   push:
-    branches: [ "feature/extended-registration-cleanup-port" ]
+    branches: [ "feature/extended-registration-cleanup-port", "release/2.4-extended-registration" ]
   pull_request:
-    branches: [ "feature/extended-registration-cleanup-port" ]
+    branches: [ "feature/extended-registration-cleanup-port", "release/2.4-extended-registration" ]
   workflow_dispatch:
 
 jobs:
