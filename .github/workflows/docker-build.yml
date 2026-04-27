@@ -59,9 +59,12 @@ jobs:
         git submodule update --recursive
         cd ..
 
-        # 2. sofia-sip — GitHub mirror doesn't have the exact pinned commit (9a81ffa2),
-        #    so use the bc branch HEAD which is Belledonne's maintained branch.
-        git clone --branch bc https://github.com/BelledonneCommunications/sofia-sip.git submodules/externals/sofia-sip
+        # 2. sofia-sip — pinned commit (9a81ffa2) and tport_set_max_read_size
+        #    only exist on gitlab's bc-flexisip-release/2.4 branch. GitHub mirror's
+        #    bc branch lacks the symbol, so clone from gitlab directly.
+        git clone --branch bc-flexisip-release/2.4 --depth 1 \
+          https://gitlab.linphone.org/BC/public/external/sofia-sip.git \
+          submodules/externals/sofia-sip
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
