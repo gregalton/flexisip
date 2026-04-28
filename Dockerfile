@@ -121,6 +121,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     libmbedtls-dev \
     libjemalloc2 \
+    iptables \
     && rm -rf /var/lib/apt/lists/* && \
     echo "Listing mbedtls libraries:" && \
     ls -la /usr/lib/x86_64-linux-gnu/libmbedtls* && \
