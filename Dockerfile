@@ -58,7 +58,7 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python
 RUN pip3 install pystache six
 
 # Set build arguments
-ARG FLEXISIP_VERSION=2.3.4
+ARG FLEXISIP_VERSION=2.4.1-extended-registration
 ARG LINPHONESDK_VERSION=5.2.4
 ARG njobs=4
 
