@@ -23,7 +23,8 @@ using namespace flexisip;
 
 /*add a parameter like "CtRt15.128.128.2=tcp:201.45.118.16:50025" in the contact, so that we know where is the client
  when we later have to route an INVITE to him */
-void ContactMasquerader::masquerade(su_home_t *home, sip_contact_t *c, const char *domain) {
+void ContactMasquerader::masquerade(su_home_t *home, sip_contact_t *c, const char *domain,
+                                    const char *incomingTransport) {
 	if (c == NULL || c->m_url->url_host == NULL) {
 		LOGD("Sip contact or url is null");
 		return;
@@ -35,9 +36,14 @@ void ContactMasquerader::masquerade(su_home_t *home, sip_contact_t *c, const cha
 		return;
 	}
 
-	// grab the transport of the contact uri
+	// Determine the transport to embed in the CtRt token. Prefer the actual transport the message
+	// arrived on (incomingTransport), so clients whose Contact header omits transport= are routed back
+	// over the same transport they registered on instead of falling back to UDP.
 	char ct_tport[32] = "udp";
-	if (url_param(ct_url->url_params, "transport", ct_tport, sizeof(ct_tport)) > 0) {
+	if (incomingTransport && incomingTransport[0] != '\0') {
+		strncpy(ct_tport, incomingTransport, sizeof(ct_tport) - 1);
+		ct_tport[sizeof(ct_tport) - 1] = '\0';
+	} else if (url_param(ct_url->url_params, "transport", ct_tport, sizeof(ct_tport)) > 0) {
 	}
 
 	// Create parameter
@@ -74,6 +80,17 @@ void ContactMasquerader::masquerade(su_home_t *home, sip_contact_t *c, const cha
 
 void ContactMasquerader::masquerade(std::shared_ptr<SipEvent> ev, bool insertDomain) {
 		const char *domain = insertDomain ? ev->getSip()->sip_from->a_url->url_host : NULL;
+		// Resolve the actual incoming transport (e.g. "tcp", "tls", "udp") from the primary tport
+		// the message was delivered on. This is the source of truth for how to reach the client,
+		// independent of whether the client put transport= in its Contact header URI.
+		const char *incomingTransport = NULL;
+		const auto& inTport = ev->getIncomingTport();
+		if (inTport) {
+			const tp_name_t *tname = tport_name(inTport.get());
+			if (tname && tname->tpn_proto) {
+				incomingTransport = tname->tpn_proto;
+			}
+		}
 		sip_contact_t *contact = ev->getSip()->sip_contact;
 		while(contact) {
 			if(contact->m_expires && strcmp(contact->m_expires, "0") == 0 && (contact != ev->getSip()->sip_contact || contact->m_next)) {
@@ -82,7 +99,7 @@ void ContactMasquerader::masquerade(std::shared_ptr<SipEvent> ev, bool insertDom
 				msg_header_remove(ev->getMsgSip()->getMsg(), (msg_pub_t *)ev->getSip(), (msg_header_t *)contact);
 				contact = tmp;
 			} else {
-				masquerade(ev->getHome(), contact, domain);
+				masquerade(ev->getHome(), contact, domain, incomingTransport);
 				contact = contact->m_next;
 			}
 		}

@@ -38,9 +38,13 @@ public:
 
 	/*add a parameter like "CtRt15.128.128.2=tcp:201.45.118.16:50025" in the contact, so that we know where is the
 	 client
-	 when we later have to route an INVITE to him */
-	void masquerade(su_home_t *home, sip_contact_t *c, const char *domain = NULL);
-	
+	 when we later have to route an INVITE to him.
+	 If incomingTransport is non-null, it overrides the transport read from the contact URI's transport= param,
+	 ensuring the CtRt token reflects the actual transport the message arrived on (e.g. "tcp" for an Android
+	 client whose Contact header omits transport=tcp). */
+	void masquerade(su_home_t *home, sip_contact_t *c, const char *domain = NULL,
+	                const char *incomingTransport = NULL);
+
 	/**
 	 * Masquerade each contact header of a REGISTER request except those
 	 * which have an 'expires' parameter with a null value. Those contact headers
