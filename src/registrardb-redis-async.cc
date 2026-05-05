@@ -615,10 +615,23 @@ public:
 
 			// Persist to Redis
 			auto& ctxRef = *context;
-			mDb->serializeAndSendToRedis(ctxRef, [context = std::move(context)](Session&, Reply reply) {
+			auto* db = mDb;
+			mDb->serializeAndSendToRedis(ctxRef, [context = std::move(context), db](Session&, Reply reply) {
 				if (const auto* err = std::get_if<reply::Error>(&reply)) {
 					SLOGE << "Extension persist failed for AOR " << context->mRecord->getKey() << ": " << *err;
+					return;
 				}
+				// Mirror the publish() that ModuleRegistrar performs after a successful REGISTER, so
+				// reg-event subscribers (e.g. Kamailio via the RegEvent server) receive a NOTIFY
+				// reflecting the extended expiry.
+				std::string uid;
+				for (const auto& c : context->mRecord->getExtendedContacts()) {
+					if (c) {
+						uid = c->mKey.str();
+						break;
+					}
+				}
+				if (!uid.empty()) db->publish(context->mRecord->getKey(), uid);
 			});
 
 		} catch (const std::exception& e) {
