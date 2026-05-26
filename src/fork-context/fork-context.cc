@@ -65,16 +65,13 @@ bool ForkContext::processResponse(const shared_ptr<ResponseSipEvent>& ev) {
 			auto forkCtx = bInfo->mForkCtx.lock();
 			forkCtx->onResponse(bInfo, copyEv);
 
-			// the event may go through but it will not be sent*/
-			ev->setIncomingAgent(nullptr);
-
-			if (!copyEv->isSuspended()) {
-				// LOGD("A response has been submitted");
-				// copyEv has been resubmited, so stop original event.
-				ev->terminateProcessing();
-			} else {
-				// LOGD("The response has been retained");
-			}
+			// The fork has taken ownership of this response via copyEv / mLastResponse.
+			// Terminate the original event unconditionally so it cannot leak through
+			// ForwardModule — even when copyEv is held suspended on the branch (e.g.
+			// a 503/408 held for a fork-late re-dispatch).  The retained response will
+			// be forwarded later by ForkContextBase::forwardResponse() when the fork
+			// closes or a better branch answers.
+			ev->terminateProcessing();
 
 			if (forkCtx->allCurrentBranchesAnswered(FinalStatusMode::RFC) && forkCtx->hasNextBranches()) {
 				forkCtx->start();
