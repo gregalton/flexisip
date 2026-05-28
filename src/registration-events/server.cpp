@@ -122,6 +122,16 @@ void Server::Subscription::processRecord(const shared_ptr<Record>& record, const
 	notifyContent->setType("application");
 	notifyContent->setSubtype("reginfo+xml");
 
+	// Guard against attempting to NOTIFY on a terminated SIP subscription.
+	// The Subscription is intentionally kept alive after SIP termination (see
+	// onSubscriptionStateChanged) to preserve the Redis pub/sub subscription for
+	// the topic, but we cannot send SIP NOTIFYs on a terminated event.
+	if (mEvent->getSubscriptionState() == linphone::SubscriptionState::Terminated) {
+		SLOGD << mLogPrefix << "Skipping NOTIFY for '" << aor
+		      << "': SIP subscription is terminated";
+		return;
+	}
+
 	mEvent->notify(notifyContent);
 }
 
@@ -201,45 +211,17 @@ void Server::Application::onSubscriptionStateChanged(const shared_ptr<linphone::
 
 	switch (state) {
 		case linphone::SubscriptionState::Terminated: {
-			SipUri toUri{};
-			try {
-				toUri = SipUri(event->getTo()->asStringUriOnly());
-			} catch (const exception& exception) {
-				SLOGI << mLogPrefix << "Subscription[event=" << event << "] terminated: invalid URI in 'To' header ("
-				      << exception.what() << ")";
-				return;
-			}
-
-			const auto recordKey = Record::Key(toUri, mRegistrarDb->useGlobalDomain()).toString();
-			if (mSubscriptions.find(recordKey) == mSubscriptions.end()) {
-				SLOGD << mLogPrefix << "Subscription[event=" << event
-				      << "] terminated: nothing to do as there is no subscription to record key '" << recordKey << "'";
-				return;
-			}
-
-			// Remove subscription for current fromUri.
-			auto& subscriptions = mSubscriptions[recordKey];
-			const auto fromUri = event->getFrom()->asStringUriOnly();
-			const auto subscriptionIt =
-			    find_if(subscriptions.begin(), subscriptions.end(), [&fromUri](const auto& subscription) {
-				    return subscription->getEvent()->getFrom()->asStringUriOnly() == fromUri;
-			    });
-
-			if (subscriptionIt != subscriptions.end()) {
-				subscriptions.erase(subscriptionIt);
-				SLOGD << mLogPrefix << "Removed Subscription[event=" << event << "] from '" << fromUri
-				      << "' to record key '" << recordKey << "'";
-			} else {
-				SLOGD << mLogPrefix << "Tried to remove Subscription[event=" << event << "] to '" << recordKey
-				      << "' but event pointer was not found in the subscriptions vector";
-			}
-
-			// Remove key if there are no more subscriptions to it.
-			if (mSubscriptions[recordKey].empty()) {
-				mSubscriptions.erase(recordKey);
-				SLOGI << mLogPrefix << "Removed record key '" << recordKey
-				      << "' from subscriptions map (no more active subscriptions)";
-			}
+			// Intentionally do NOT erase the Subscription from mSubscriptions here.
+			// Keeping it alive preserves the weak_ptr in RegistrarDb::mContactListenersMap,
+			// which in turn prevents the Redis pub/sub subscription for this topic from
+			// being torn down. Without this, extended-registration notifications (which
+			// use the same contact key) would never reach the RegEvent server because the
+			// Redis subscription would have been destroyed during the initial notification
+			// chain's weak_ptr cleanup. The Subscription is naturally cleaned up when
+			// Kamailio sends a new SUBSCRIBE (onSubscribeReceived replaces it), and
+			// processRecord() guards against sending NOTIFYs on a terminated SIP event.
+			SLOGI << mLogPrefix << "Subscription[event=" << event
+			      << "] SIP state terminated — keeping listener alive for registration extensions";
 		} break;
 		default:
 			break;

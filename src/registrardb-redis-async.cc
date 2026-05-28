@@ -631,7 +631,15 @@ public:
 						break;
 					}
 				}
-				if (!uid.empty()) db->publish(context->mRecord->getKey(), uid);
+				if (!uid.empty()) {
+					// Notify local listeners directly so that reg-event subscribers
+					// (e.g. Kamailio) receive the extension notification even if the
+					// Redis pub/sub subscription for this topic was torn down.
+					db->mNotifyContactListener(context->mRecord->getKey(),
+					                           std::optional<std::string_view>(uid));
+					// Also publish to Redis for other Flexisip instances in a cluster.
+					db->publish(context->mRecord->getKey(), uid);
+				}
 			});
 
 		} catch (const std::exception& e) {
