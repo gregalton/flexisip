@@ -175,23 +175,37 @@ void RegistrarDb::notifyContactListener(const Record::Key& key, std::string_view
 }
 
 void RegistrarDb::notifyContactListener(const shared_ptr<Record>& r, const string& uid) {
-	auto range = mContactListenersMap.equal_range(r->getKey().asString());
+	const auto topic = r->getKey().asString();
+	auto range = mContactListenersMap.equal_range(topic);
 
 	/* Because invoking the listener might indirectly unregister listeners from the RegistrarDb, it is required
 	 * to first create a local copy of the list of listeners we are going to invoke. */
 	vector<shared_ptr<ContactRegisteredListener>> listeners{};
-	for (auto it = range.first; it != range.second;) {
+	for (auto it = range.first; it != range.second; ++it) {
 		if (auto strongPtr = it->second.lock()) {
 			listeners.emplace_back(std::move(strongPtr));
-			it++;
-		} else {
-			// Clear expired listener
-			it = mContactListenersMap.erase(it);
 		}
+		// Do NOT erase expired entries here. Keeping them in the map ensures that
+		// mContactListenersMap.count(topic) > 0 during the callbacks below. Without
+		// this, a callback that calls unsubscribe() (e.g. the Router when no forks
+		// are found) would see count == 0 and tear down the Redis pub/sub subscription
+		// for the topic, preventing future registration-extension notifications from
+		// being delivered to any remaining (or future) listeners.
 	}
 	for (const auto& l : listeners) {
 		SLOGD << "Notify topic = " << r->getKey() << " to listener " << l.get();
 		l->onContactRegistered(r, uid);
+	}
+
+	// Clean up expired entries now that all callbacks have completed.
+	// Re-iterate since callbacks may have modified the map (e.g. via unsubscribe).
+	auto cleanupRange = mContactListenersMap.equal_range(topic);
+	for (auto it = cleanupRange.first; it != cleanupRange.second;) {
+		if (it->second.expired()) {
+			it = mContactListenersMap.erase(it);
+		} else {
+			++it;
+		}
 	}
 }
 
