@@ -19,7 +19,6 @@
 #include "registrardb-redis.hh"
 
 #include <algorithm>
-#include <cassert>
 #include <chrono>
 #include <map>
 #include <cstdio>
@@ -128,8 +127,22 @@ void RegistrarDbRedisAsync::handlePublish(std::string_view topic, Reply reply) {
 	try {
 		const auto& array = std::get<reply::Array>(reply);
 		const auto messageType = std::get<reply::String>(array[0]);
+		// Subscribed-mode PING replies are ["pong", payload]. Old hiredis can demux them onto a
+		// channel callback (BC-1868). Never abort; ignore control replies that are not pub/sub traffic.
+		if (messageType == "pong") {
+			SLOGD << "Ignoring Redis subscribed-mode PONG on subscription callback for topic '" << topic
+			      << "'. Unexpected reply: " << StreamableVariant(reply);
+			return;
+		}
 		const auto channel = std::get<reply::String>(array[1]);
-		assert(channel == topic);
+		// Recoverable demux mismatch under concurrent multi-channel SUBSCRIBE/PUBLISH/UNSUBSCRIBE/PING.
+		// Do not abort the process; drop the reply rather than mis-delivering it or forcing recovery.
+		if (channel != topic) {
+			SLOGE << "Redis pub/sub demux mismatch: messageType='" << messageType << "' channel='" << channel
+			      << "' topic='" << topic << "'. Dropping reply without notifying contact listener. Unexpected reply: "
+			      << StreamableVariant(reply);
+			return;
+		}
 		const auto messageOrSubsCount = array[2];
 		if (messageType == "message") {
 			const auto& message = std::get<reply::String>(messageOrSubsCount);
