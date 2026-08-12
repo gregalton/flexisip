@@ -58,11 +58,41 @@ bool ForkContext::processResponse(const shared_ptr<ResponseSipEvent>& ev) {
 	if (transaction) {
 		auto bInfo = BranchInfo::getBranchInfo(transaction);
 		if (bInfo) {
+			auto forkCtx = bInfo->mForkCtx.lock();
+			if (!forkCtx) {
+				ev->terminateProcessing();
+				return true;
+			}
+
+			// Sofia delivers CANCEL responses on the same nta_outgoing_t as the INVITE
+			// (nta_outgoing_tcancel). Those responses must never be treated as answers to
+			// the forked INVITE: forwarding them through the INVITE IncomingTransaction
+			// trips nta_incoming_mreply's cs_method == irq_method assert (SIGABRT).
+			// Seen live on flexisip-v2: 481 to CANCEL forwarded on INVITE irq → abort.
+			const auto* responseSip = ev->getMsgSip() ? ev->getMsgSip()->getSip() : nullptr;
+			const auto& forkEvent = forkCtx->getEvent();
+			const auto* requestSip = forkEvent && forkEvent->getMsgSip() ? forkEvent->getMsgSip()->getSip() : nullptr;
+			if (responseSip && responseSip->sip_cseq && requestSip && requestSip->sip_request &&
+			    responseSip->sip_cseq->cs_method != requestSip->sip_request->rq_method) {
+				const auto* cseqName = responseSip->sip_cseq->cs_method_name
+				                           ? responseSip->sip_cseq->cs_method_name
+				                           : "?";
+				const auto* reqName = requestSip->sip_request->rq_method_name
+				                          ? requestSip->sip_request->rq_method_name
+				                          : "?";
+				const auto status =
+				    responseSip->sip_status ? responseSip->sip_status->st_status : 0;
+				SLOGW << "ForkContext: dropping response CSeq method '" << cseqName << "' (" << status
+				      << ") that does not match forked request method '" << reqName
+				      << "' — not storing on branch and not forwarding to incoming transaction";
+				ev->terminateProcessing();
+				return true;
+			}
+
 			auto copyEv = make_shared<ResponseSipEvent>(ev); // make a copy
 			copyEv->suspendProcessing();
 			bInfo->mLastResponse = copyEv;
 
-			auto forkCtx = bInfo->mForkCtx.lock();
 			forkCtx->onResponse(bInfo, copyEv);
 
 			// The fork has taken ownership of this response via copyEv / mLastResponse.

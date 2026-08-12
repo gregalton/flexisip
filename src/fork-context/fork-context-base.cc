@@ -507,7 +507,23 @@ shared_ptr<ResponseSipEvent> ForkContextBase::forwardResponse(const shared_ptr<B
 
 shared_ptr<ResponseSipEvent> ForkContextBase::forwardResponse(const shared_ptr<ResponseSipEvent>& ev) {
 	if (mIncoming) {
-		int code = ev->getMsgSip()->getSip()->sip_status->st_status;
+		const auto* responseSip = ev->getMsgSip() ? ev->getMsgSip()->getSip() : nullptr;
+		const auto* requestSip = mEvent && mEvent->getMsgSip() ? mEvent->getMsgSip()->getSip() : nullptr;
+		// Defense in depth: never pin a mismatched CSeq method onto the incoming transaction.
+		// CANCEL responses delivered on INVITE outgoing transactions would abort in
+		// nta_incoming_mreply (cs_method != irq_method).
+		if (responseSip && responseSip->sip_cseq && requestSip && requestSip->sip_request &&
+		    responseSip->sip_cseq->cs_method != requestSip->sip_request->rq_method) {
+			const auto* cseqName =
+			    responseSip->sip_cseq->cs_method_name ? responseSip->sip_cseq->cs_method_name : "?";
+			const auto* reqName =
+			    requestSip->sip_request->rq_method_name ? requestSip->sip_request->rq_method_name : "?";
+			SLOGW << logPrefix() << "forwardResponse(): refusing response CSeq method '" << cseqName
+			      << "' for forked request method '" << reqName << "'";
+			return shared_ptr<ResponseSipEvent>();
+		}
+
+		int code = responseSip && responseSip->sip_status ? responseSip->sip_status->st_status : 0;
 		ev->setIncomingAgent(mIncoming);
 		mLastResponseSent = ev;
 

@@ -18,6 +18,8 @@
 
 #include "incoming-transaction.hh"
 
+#include <sofia-sip/nta.h>
+#include <sofia-sip/sip.h>
 #include <sofia-sip/su_tagarg.h>
 
 #include "flexisip/logmanager.hh"
@@ -73,11 +75,25 @@ shared_ptr<MsgSip> IncomingTransaction::createResponse(int status, char const* p
 
 void IncomingTransaction::send(const shared_ptr<MsgSip>& ms, url_string_t const*, tag_type_t, tag_value_t, ...) {
 	if (mIncoming) {
+		const auto* sip = ms->getSip();
+		// Sofia aborts in nta_incoming_mreply when response CSeq method != irq method.
+		// Refuse mismatched replies here so a fork/control-path bug cannot take down the process.
+		if (sip && sip->sip_cseq) {
+			const auto irqMethod = nta_incoming_method(mIncoming);
+			if (sip->sip_cseq->cs_method != irqMethod) {
+				const auto* cseqName = sip->sip_cseq->cs_method_name ? sip->sip_cseq->cs_method_name : "?";
+				const auto* irqName = nta_incoming_method_name(mIncoming);
+				LOGE("IncomingTransaction::send(): this=%p refusing response CSeq method '%s' on incoming transaction "
+				     "method '%s' (would abort in nta_incoming_mreply)",
+				     this, cseqName, irqName ? irqName : "?");
+				return;
+			}
+		}
 		msg_t* msg =
 		    msg_ref_create(ms->getMsg()); // need to increment refcount of the message because mreply will decrement it.
 		LOGD("Response is sent through an incoming transaction.");
 		nta_incoming_mreply(mIncoming, msg);
-		if (ms->getSip()->sip_status != nullptr && ms->getSip()->sip_status->st_status >= 200) {
+		if (sip && sip->sip_status != nullptr && sip->sip_status->st_status >= 200) {
 			destroy();
 		}
 	} else {
