@@ -28,8 +28,9 @@ COPY docker/flexisip-entrypoint.sh /
 COPY docker/backtrace.gdb /
 RUN chmod a+x /flexisip-entrypoint.sh
 
-# Script to wait db before launch flexisip [Licence Apache2]
-ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
+# Script to wait db before launch flexisip [Licence Apache2].
+# Vendored to avoid live GitHub download flakiness in CI/builders.
+COPY docker/docker-compose-wait /wait
 RUN chmod +x /wait
 RUN yum clean all
 

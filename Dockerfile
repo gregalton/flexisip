@@ -170,12 +170,11 @@ RUN chmod +x /flexisip-entrypoint.sh && \
 COPY --from=builder /usr/local/share/flexisip/*.py /usr/local/share/flexisip/
 RUN chmod +x /usr/local/share/flexisip/*.py
 
-# Script to wait db before launch flexisip [Licence Apache2]
-RUN wget -O /wait https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait && \
-    chmod +x /wait && \
-    echo "=== Wait script content ===" && \
-    cat /wait && \
-    echo "=== End of wait script ==="
+# Script to wait db before launch flexisip [Licence Apache2].
+# Vendored under docker/ so image builds do not depend on a live GitHub download
+# (CI failed 2026-08-12 fetching ufoscout/docker-compose-wait@2.2.1 with "No data received").
+COPY docker/docker-compose-wait /wait
+RUN chmod +x /wait
 
 # Add library path to LD_LIBRARY_PATH
 ENV LD_LIBRARY_PATH=/opt/belledonne-communications/lib:/usr/local/lib
